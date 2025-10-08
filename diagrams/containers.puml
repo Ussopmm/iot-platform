@@ -1,0 +1,41 @@
+@startuml Containers
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+Container_Boundary(platform, "IoT Monitoring Platform", "system") {
+    Container(api_gateway, "API Gateway", "Spring Cloud Gateway", "Маршрутизация и авторизация")
+    Container_Ext(devices, "IoT Devices", "Встраиваемые устройства", "Отправляют и получают телеметрию")
+    Container_Ext(keycloak, "Keycloak", "OAuth2", "Аутентификация и авторизация")
+    Container(api_orchestrator, "API Orchestrator", "Spring Boot", "Орекстратор: вызывает event-, device-, и command-сервисы")
+    Container(command_service, "Command Service", "Go + gRPC", Принимает команды по gRPC и отдаёт их устройствам. Работает с отдельной БД PostgreSQL")
+    Container(device_service, "Device Service", "Spring Boot + ShardingSphere-JDBC", "CRUD API по устройствам. Использует встроенное шардирование через JDBC")
+    Container(event_service, "Event Service", "Spring Boot", "Чтение событий из Cassandra")
+    Container(redis, "Redis", "in-memory Cache", "Кэширование запросов")
+    Container(events_collector, "Events Collector", "Spring Boot", "Kafka -> Cassandra + device-id")
+    Container(device_collector, "Device Collector", "Spring Boot", "Получает device-id, сохраняет в PostgreSQL (Devices)")
+    Container(failed_events_processor, "Failed Events Processor", "Spring Boot", "DLT -> JSON в MinIO")
+    Container_Ext(postgresql_commands, "PostgreSQL [Commands]", "Реляционная БД", "Отдельная база для команд. Используется GO-сервисом")
+    Container_Ext(postgresql_devices, "PostgresQL (Devices)", "Реляционная БД", "Шардированная база данных устройств. Синхронная репликация каждого шарда")
+    Container(cassandra_cluster, "NoSQL", "Хранение событий")
+    Container_Ext(kafka_cluster, "Kafka", "event / dit / device-id топики")
+    Container(minio, "MinIO", "Объектное хранилище", "Сохранение ошибок DLT")
+}
+
+Rel(api_gateway, keycloak, "OIDC авторизация")
+Rel(api_gateway, api_orchestrator, "REST [JWT]")
+Rel(devices, command_service, "gRPC [Получение команд]")
+Rel(api_orchestrator, device_service, "REST")
+Rel(api_orchestrator, event_service, "REST")
+Rel(api_orchestrator, redis, "Кэширование")
+Rel(api_orchestrator, command_service, "gRPC [Отправка команд]")
+Rel(command_service, postgresql_commands, "JDBC (write/read)")
+Rel(device_service, postgresql_devices, "Sharded JDBC (write/read)")
+Rel(event_service, cassandra_cluster, "Read: события")
+Rel(events_collector, cassandra_cluster, "Write: события")
+Rel(events_collector, kafka_cluster, "Consume: events-topic")
+Rel(events_collector, kafka_cluster, "Produce: device-id-topic")
+Rel(events_collector, kafka_cluster, "Produce: dlt-topic")
+Rel(device_collector, kafka_cluster, "Consume: device-id-topic")
+Rel(failed_events_processor, kafka_cluster, "Consume: dlt-topic")
+Rel(failed_events_processor, minio, "Save: JSON")
+
+@enduml

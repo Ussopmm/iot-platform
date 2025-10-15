@@ -15,6 +15,7 @@ Container_Boundary(platform, "IoT Monitoring Platform", "system") {
     Container(failed_events_processor, "Failed Events Processor", "Spring Boot", "DLT -> JSON в MinIO")
     Container_Ext(postgresql_commands, "PostgreSQL [Commands]", "Реляционная БД", "Отдельная база для команд. Используется GO-сервисом")
     Container_Ext(postgresql_devices, "PostgresQL (Devices)", "Реляционная БД", "Шардированная база данных устройств. Синхронная репликация каждого шарда")
+    Container_Ext(postgresql_keycloak, "PostgresQL (Keycloak)", "Реляционная БД", "База данных для Keycloak")
     Container(cassandra_cluster, "NoSQL", "Хранение событий")
     Container_Ext(kafka_cluster, "Kafka", "event / dit / device-id топики")
     Container(minio, "MinIO", "Объектное хранилище", "Сохранение ошибок DLT")
@@ -37,5 +38,6 @@ Rel(events_collector, kafka_cluster, "Produce: dlt-topic")
 Rel(device_collector, kafka_cluster, "Consume: device-id-topic")
 Rel(failed_events_processor, kafka_cluster, "Consume: dlt-topic")
 Rel(failed_events_processor, minio, "Save: JSON")
+Rel(keycloak, postgresql_keycloak, "write/read")
 
 @enduml

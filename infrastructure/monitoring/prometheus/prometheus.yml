@@ -1,0 +1,51 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: [ 'localhost:9090' ]
+
+  - job_name: 'postgres-exporter'
+    static_configs:
+      - targets: [ 'postgres-exporter:9187' ]
+
+  - job_name: 'kafka-exporter'
+    static_configs:
+      - targets: [ 'kafka-exporter:9308' ]
+
+  - job_name: 'keycloak'
+    metrics_path: /metrics
+    static_configs:
+      - targets: [ 'keycloak:9002' ]
+
+  - job_name: 'redis-exporter'
+    static_configs:
+      - targets: [ 'redis-exporter:9121' ]
+
+#  - job_name: 'minio'
+#    metrics_path: /minio/v2/metrics/node
+##    scheme: http
+#    static_configs:
+#      - targets: [ 'minio:9000' ]
+#    basic_auth:
+#      username: minio
+#      password: user-user
+
+
+  - job_name: 'alloy'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['alloy:9080']
+
+  - job_name: 'loki'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['loki:3100']
+
+  - job_name: 'grafana'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['grafana:3000']

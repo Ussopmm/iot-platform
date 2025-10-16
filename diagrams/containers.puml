@@ -3,7 +3,6 @@
 !includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
 
 System_Boundary(platform, "IoT Monitoring Platform") {
-    Container(keycloak, "Keycloak", "OAuth2", "Аутентификация и авторизация")
     Container(postgresql_keycloak, "PostgreSQL (Keycloak)", "Реляционная БД", "База данных для Keycloak")
     Container(postgresql_iot, "PostgreSQL IoT", "Реляционная БД", "Общая база данных для платформы IoT")
     Container(redis, "Redis", "In-memory cache", "Кэширование запросов")
@@ -11,6 +10,8 @@ System_Boundary(platform, "IoT Monitoring Platform") {
     Container(kafka_cluster, "Kafka", "Брокер сообщений", "Топики: event / dlq / device-id")
     Container(minio, "MinIO", "Объектное хранилище", "Хранение артефактов/ошибок (DLQ)")
 
+
+    Container_Ext(keycloak, "Keycloak", "OAuth2", "Аутентификация и авторизация")
     Container_Ext(schema_registry, "Schema Registry", "Реестр схем Kafka")
     Container_Ext(kafka_ui, "Kafka UI", "Веб-интерфейс Kafka")
 
@@ -25,10 +26,10 @@ System_Boundary(platform, "IoT Monitoring Platform") {
         Container(postgres_exporter, "PostgreSQL Exporter", "Exporter", "Метрики PostgreSQL")
     }
 }
+Container_Ext(zookeeper, "Zookeeper", "Координация брокеров")
+
 
 Rel(keycloak, postgresql_keycloak, "Читает/пишет")
-
-Container_Ext(zookeeper, "Zookeeper", "Координация брокеров")
 Rel(kafka_cluster, zookeeper, "Координация/метаданные")
 
 Rel(redis_exporter, redis, "Collects metrics")

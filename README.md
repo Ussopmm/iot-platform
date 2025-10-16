@@ -1,18 +1,55 @@
-To start the system:
-1. cd infrastructure
-2. docker-compose up -d --build (you can run it via makefile as well, to run paste this value `make up`)
-3. check if all containers are running with `docker ps` 
-4. open http://localhost:3000 in your browser to see Grafana UI
-5. to stop docker containers run `docker-compose down` or `make down`
+# **IOT Platform**
 
-To add data sources:
-1. Open Grafana UI at http://localhost:3000
-2. go to connections -> data sources -> add new data source -> select Prometheus and do not forget to set the URL to `http://prometheus:9090`
-   (same for Loki and Tempo if you want to use them)
+Что бы подробнее ознакомиться с архитектурой системы рекомендуется рассмотреть C4 UML диаграммы.
+Для просмотра перейдите:
+```cd diagrams```
+Внутри директории две UML диаграммы
+```containers.puml & context.puml```
 
-To add dashboards:
-1. Open Grafana UI at http://localhost:3000
-2. go to connections -> dashboards -> import dashboard
-3. paste there this two ids 10122 (for kafka) and 9628 (for postgresql)
+**context.puml** описывает общий контекст системы. Показывает систему целиком и взаимодействия данной системы с
+внешними пользователями и системами
 
+**containers.puml** описывает внутреннее устройство системы, сервисы, базы данных, брокеры и т.д. и их 
+взаимодействие друг с другом
+
+# Инструкция по запуску системы
+
+## Запуск системы
+
+1. Перейдите в папку **infrastructure**:
+```
+cd infrastructure
+```
+2. Запустите контейнеры:
+```
+docker-compose up -d --build
+```
+Или через Makefile:
+```
+make up
+```
+3. Проверьте, что все контейнеры работают и имеют статус healthy:
+```
+docker ps | make ps
+```
+4. Перейдите по пути http://localhost:8080 что бы увидеть интерфейс кейклока,
+   http://localhost:3000, чтобы увидеть интерфейс Grafana. И если, все успешно открывается,
+значит вы все правильно запустили
+5. Чтобы остановить контейнеры:
+```
+docker-compose down | make down
+``` 
+
+
+## Добавление источников данных
+
+```
+Откройте интерфейс Grafana: http://localhost:3000
+Перейдите:
+Connections → Data sources → Add new data source
+Выберите Prometheus и укажите URL:
+http://prometheus:9090
+```
+
+Аналогично можно добавить Loki и Tempo, если вы хотите их использовать.
 

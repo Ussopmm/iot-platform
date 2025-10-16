@@ -271,6 +271,7 @@ services:
       - iot-platform-net
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards
       - grafana-storage:/var/lib/grafana
     healthcheck:
       test: [ "CMD", "wget", "--spider", "http://localhost:3000/api/health" ]

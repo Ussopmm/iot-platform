@@ -1,0 +1,24 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+Container_Boundary(c1, "Event Collector service") {
+    Component(kafka_consumer_config, "KafkaConsumerConfig.java", "Config file", "Настраивает подключение к Kafka и десериализацию Avro сообщений")
+    Component(event_producer, "EventProducer.java", "Kafka Producer", "Отправляет deviceId в другой Kafka топик после сохранения события")
+    Component(event_listener, "EventListener.java", "Kafka Listener", "Слушает события из Kafka топика и сохраняет их в Cassandra")
+    Component(device_events_by_device, "DeviceEventsByDevice.java", "Model", "Модель таблицы в Cassandra для хранения событий по deviceId")
+    Component(device_events_by_device_repository, "DeviceEventsByDeviceRepository.java", "Repository","Репозиторий Spring Data для взаимодействия с таблицей DeviceEventsByDevice в Cassandra")
+    Component(device_events_service, "DeviceEventService.java", "Cassandra Database CRUD service","Сервисный слой для обработки логики сохранения событий и отправки deviceId в Kafka")
+}
+
+Component_Ext(cassandra_db, "Cassandra DB", "NoSQL DB", "Хранит десериализованные события от IoT устройств")
+Component_Ext(kafka_broker, "Kafka Broker", "Message Broker", "Обрабатывает поступающие Avro события от IoT устройств")
+
+Rel(kafka_broker, event_listener, "Sends Avro serialized DeviceEvent")
+Rel(event_producer, kafka_broker, "Public deviceId to 'device-id-topic'")
+Rel(device_events_by_device, device_events_by_device_repository, "Модель которой должна соответствовать таблица в Cassandra")
+Rel(device_events_service, device_events_by_device_repository, "CRUD operations")
+Rel(event_listener, device_events_by_device_repository, "Saves deserialized events")
+Rel(device_events_by_device_repository, cassandra_db, "")
+
+
+@enduml

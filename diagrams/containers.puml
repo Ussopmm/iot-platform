@@ -9,9 +9,9 @@ System_Boundary(platform, "IoT Monitoring Platform") {
     Container(cassandra_cluster, "Cassandra", "NoSQL", "Хранение событий")
     Container(kafka_cluster, "Kafka", "Брокер сообщений", "Топики: event / dlq / device-id")
     Container(minio, "MinIO", "Объектное хранилище", "Хранение артефактов/ошибок (DLQ)")
-
-
-    Container_Ext(keycloak, "Keycloak", "OAuth2", "Аутентификация и авторизация")
+'    Container(event_collector_service, "Event Collector Service", "Сервис сбора событий", "Сбор событий от устройств")
+'
+'    Container_Ext(keycloak, "Keycloak", "OAuth2", "Аутентификация и авторизация")
     Container_Ext(schema_registry, "Schema Registry", "Реестр схем Kafka")
     Container_Ext(kafka_ui, "Kafka UI", "Веб-интерфейс Kafka")
 
@@ -20,10 +20,14 @@ System_Boundary(platform, "IoT Monitoring Platform") {
         Container(prometheus, "Prometheus", "TSDB", "Хранение/запрос метрик")
         Container(loki, "Loki", "Логи", "Хранение и поиск логов")
         Container(grafana, "Grafana", "UI", "Визуализация телеметрии")
+        Container(tempo, "Tempo", "Трейсинг", "Хранение и поиск трассировок")
 
         Container(redis_exporter, "Redis Exporter", "Exporter", "Метрики Redis")
         Container(kafka_exporter, "Kafka Exporter", "Exporter", "Метрики Kafka")
         Container(postgres_exporter, "PostgreSQL Exporter", "Exporter", "Метрики PostgreSQL")
+        Container(event_collector_service, "Event Collector Service", "Сервис сбора событий", "Сбор событий от устройств")
+        Container_Ext(keycloak, "Keycloak", "OAuth2", "Аутентификация и авторизация")
+
     }
 }
 Container_Ext(zookeeper, "Zookeeper", "Координация брокеров")
@@ -40,13 +44,20 @@ Rel(postgres_exporter, postgresql_keycloak, "Collects metrics")
 Rel(prometheus, redis_exporter, "Scrapes /metrics")
 Rel(prometheus, kafka_exporter, "Scrapes /metrics")
 Rel(prometheus, postgres_exporter, "Scrapes /metrics")
+Rel(prometheus, event_collector_service, "Scrapes /metrics")
+Rel(prometheus, keycloak, "Scrapes /metrics")
 
 Rel(grafana, prometheus, "Queries metrics")
 Rel(grafana, loki, "Queries logs")
 
 Rel(alloy, loki, "Отправка логов")
 Rel(alloy, prometheus, "remote_write (если используется)")
+Rel(alloy, tempo, "Отправка трассировок")
 
 Rel(kafka_ui, kafka_cluster, "Просмотр/управление топиками")
+
+Rel(event_collector_service, kafka_cluster, "Запись уникальных устройств в топик device-id")
+Rel(kafka_cluster, event_collector_service, "Чтения событий из топика events")
+Rel(event_collector_service, cassandra_cluster, "Запись событий")
 
 @enduml

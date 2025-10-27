@@ -123,10 +123,10 @@ services:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
     ports:
-      - "8070:8070"
+      - "8070:8080"
     environment:
       - KAFKA_CLUSTERS_0_NAME=local
-      - KAFKA_CLUSTERS_0_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
       - KAFKA_CLUSTERS_0_ZOOKEEPER=zookeeper:2181
       - KAFKA_CLUSTERS_0_SCHEMAREGISTRY=http://schema-registry:8081
     depends_on:
@@ -137,7 +137,7 @@ services:
     networks:
       - iot-platform-net
     healthcheck:
-      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8070" ]
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8080" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -182,7 +182,7 @@ services:
       - iot-platform-net
 
   keycloak:
-    image: quay.io/keycloak/keycloak:latest
+    image: quay.io/keycloak/keycloak:26.2
     container_name: keycloak
     depends_on:
       postgres:
@@ -209,9 +209,10 @@ services:
       - "8080:8080"
       - "9002:9002"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/auth/realms/master"]
-      interval: 30s
-      retries: 3
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:9000/health/ready || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
     networks:
       - iot-platform-net
 
@@ -331,11 +332,7 @@ services:
         condition: service_healthy
     networks:
       - iot-platform-net
-    healthcheck:
-      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9121/metrics" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+
 
   loki:
     image: grafana/loki:2.9.2
@@ -382,8 +379,65 @@ services:
     depends_on:
       loki:
         condition: service_healthy
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo
+    command: [ "-config.file=/etc/tempo/tempo.yaml" ]
+    depends_on:
+      - create-tempo-bucket
+    volumes:
+      - ./monitoring/tempo/tempo.yaml:/etc/tempo/tempo.yaml
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"
+    networks:
+      - iot-platform-net
 
+  create-tempo-bucket:
+    image: minio/mc
+    container_name: create-tempo-bucket
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        sleep 10 && \
+        mc alias set minio http://minio:9000 minio user-user && \
+        mc mb -p minio/tempo && \
+        mc anonymous set download minio/tempo
+      "
+    networks:
+      - iot-platform-net
 
+  event-collector-service:
+    build:
+      context: ../event-collector-service/
+      dockerfile: Dockerfile
+    container_name: event-collector-service
+    ports:
+      - "9099:9099"
+    environment:
+      CASSANDRA_HOST: ${CASSANDRA_HOST}
+      CASSANDRA_PORT: ${CASSANDRA_PORT}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL}
+      ALLOY_URL: ${ALLOY_URL}
+      CASSANDRA_DATABASE_URL: ${CASSANDRA_DATABASE_URL}
+    networks:
+      - iot-platform-net
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9099/actuator/health" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
   minio_data:
@@ -399,7 +453,7 @@ volumes:
   loki_chunks:
   loki_index:
   loki_rules:
-
+  tempo_data:
 
 networks:
   iot-platform-net:

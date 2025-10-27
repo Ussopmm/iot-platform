@@ -1,0 +1,22 @@
+spring:
+  kafka:
+    consumer:
+      group-id: event-collector-group-it
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
+      properties:
+        specific.avro.reader: true
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+  flyway:
+    enabled: false
+  cassandra:
+    contact-points: ${CASSANDRA_HOST}
+    port: ${CASSANDRA_PORT}
+    keyspace-name: iot_platform
+    schema-action: create_if_not_exists
+    local-datacenter: datacenter1
+otel:
+  sdk:
+    disabled: true

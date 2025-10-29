@@ -1,0 +1,61 @@
+server:
+  port: 9099
+
+spring:
+  application:
+    name: event-collector-service
+  cassandra:
+    contact-points: ${CASSANDRA_HOST}
+    port: ${CASSANDRA_PORT}
+    keyspace-name: ${CASSANDRA_KEYSPACE}
+    schema-action: create_if_not_exists
+    local-datacenter: ${CASSANDRA_DATACENTER}
+    username: ${CASSANDRA_USER}
+    password: ${CASSANDRA_PASSWORD}
+  kafka:
+    producer:
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+      properties:
+        enable.idempotence: true
+      acks: all
+    consumer:
+      group-id: ${CONSUMER_GROUP_ID}
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+      key-deserializer: org.apache.kafka.common.serialization.StringSerializer
+      value-deserializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+      max-poll-records: 50
+    properties:
+      schema.registry.url:  ${SCHEMA_REGISTRY_URL}
+      specific.avro.reader: true
+    first-topic:
+      name: device-id-topic
+    second-topic:
+      name: events-topic
+    concurrency: ${KAFKA_CONCURRENCY}
+    poll-timeout: ${KAFKA_POLL_TIMEOUT}
+    batch-listener-enabled: ${KAFKA_BATCH_LISTENER_ENABLED}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    prometheus:
+      access: read-only
+    health:
+      show-details: always
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+otel:
+  exporter:
+    otlp:
+      endpoint: ${ALLOY_URL}
+      protocol: http/protobuf

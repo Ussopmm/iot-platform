@@ -1,0 +1,61 @@
+'@startuml
+'actor KafkaBroker
+'participant "EventsCollectorService" as ECS
+'participant "AvroDeserializer" as AVRO
+'participant "Cassandra" as DB
+'participant "KafkaProducer" as KP
+'
+'KafkaBroker -> ECS : событие в Avro (DeviceEvent)
+'ECS -> AVRO : десериализация Avro
+'    alt deserialization failure
+'    ECS -> ECS : log error
+'    ECS -> "DLQ Topic" : отправить в Dead Letter Queue
+'    end
+'AVRO --> ECS : DeviceEvent DTO
+'ECS -> DB : сохранить событие (по deviceId)
+'ECS -> KP : отправить deviceId в "device-id-topic"
+'alt inconsistent state (DB write failed | KP publishing failed)
+'else DB write failed
+'    ECS -> DB : retry 3 раза
+'    opt still failed
+'        ECS -> "Retry Queue" : отправить на отложенную обработку
+'    end
+'else KP publishing failed
+'
+'end
+'KP --> KafkaBroker : produce deviceId
+'@enduml
+'
+@startuml
+actor KafkaBroker
+participant "EventsCollectorService" as ECS
+participant "AvroDeserializer" as AVRO
+participant "Cassandra" as DB
+participant "KafkaProducer" as KP
+participant "DLQ Topic" as DLQ
+
+KafkaBroker -> ECS : событие в Avro (DeviceEvent)
+ECS -> AVRO : десериализация Avro
+note right of ECS
+  [error] Deserialization failed
+  → log the error -> send to DLQ
+end note
+AVRO --> ECS : DeviceEvent DTO
+
+ECS -> DB : сохранить событие (по deviceId)
+note right of DB
+  [error] logging error
+  [retry] 3 попытки
+end note
+ECS -> KP : отправить deviceId в "device-id-topic"
+note right of KP
+  [error] publish failed
+  → Retry 3 times
+end note
+KP --> KafkaBroker : produce deviceId
+
+== Обработка ошибок ==
+ECS -> DLQ : [DLQ] если Avro десериализация не удалась
+ECS -> DB : [retry] при ошибках DB
+ECS -> KP : [retry] при ошибках Kafka
+@enduml

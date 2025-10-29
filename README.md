@@ -13,6 +13,17 @@
 взаимодействие друг с другом
 
 [Контейнеры системы (containers.puml)](./diagrams/containers.puml)
+
+**ecs_component.puml** - описывает внутреннее устройство сервиса Event Collector Service
+
+[Компоненты системы (ecs_component.puml)](./diagrams/ecs_component.puml)
+
+**processing_sequence.puml** - диаграмма последовательности обработки события от момента получения события
+до момента записи в базу данных
+
+[Sequence diagram (processing_sequence.puml)](./diagrams/processing_sequence.puml)
+
+
 # Инструкция по запуску системы
 
 ## Запуск системы

@@ -16,10 +16,10 @@ public class FlywayCassandraConfig {
         return Flyway.configure()
                 .dataSource(System.getenv("CASSANDRA_DATABASE_URL"),
                         System.getenv("CASSANDRA_USER"), System.getenv("CASSANDRA_PASSWORD"))
-                .locations("classpath:db/migration")
-                .sqlMigrationSuffixes(".cql")
-                .schemas("iot_platform")
-                .defaultSchema("iot_platform")
+                .locations(System.getenv("FLYWAY_MIGRATION_CLASSPATH"))
+                .sqlMigrationSuffixes(System.getenv("FLYWAY_MIGRATION_SUFFIXES"))
+                .schemas(System.getenv("FLYWAY_MIGRATION_SCHEMA"))
+                .defaultSchema(System.getenv("FLYWAY_MIGRATION_SCHEMA"))
                 .createSchemas(true)
                 .failOnMissingLocations(true)
                 .load();

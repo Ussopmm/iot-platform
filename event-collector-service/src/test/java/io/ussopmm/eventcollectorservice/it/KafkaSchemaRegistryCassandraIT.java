@@ -3,6 +3,9 @@ package io.ussopmm.eventcollectorservice.it;
 import com.datastax.oss.driver.api.core.CqlSession;
 import com.datastax.oss.driver.api.core.cql.Row;
 import com.nashkod.avro.DeviceEvent;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +23,11 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.lifecycle.Startables;
 import org.testcontainers.utility.DockerImageName;
 
+import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.awaitility.Awaitility.await;
@@ -63,18 +70,13 @@ public class KafkaSchemaRegistryCassandraIT {
     }
     @DynamicPropertySource
     static void registerProps(DynamicPropertyRegistry r) {
-        System.setProperty("CASSANDRA_PORT", String.valueOf(CASSANDRA.getFirstMappedPort()));
-        System.setProperty("CASSANDRA_HOST", String.valueOf(CASSANDRA.getHost()));
-        System.setProperty("KAFKA_BOOTSTRAP_SERVERS", String.valueOf(KAFKA.getBootstrapServers()));
-        // Kafka
-        r.add("spring.kafka.bootstrap-servers", KAFKA::getBootstrapServers);
-        r.add("spring.kafka.properties.schema.registry.url", () ->
-                "http://" + SCHEMA_REGISTRY.getHost() + ":" + SCHEMA_REGISTRY.getMappedPort(8081));
 
         // If you use Avro with SpecificRecord:
         r.add("spring.kafka.properties.specific.avro.reader", () -> "true");
 
         // Cassandra (Datastax driver)
+        r.add("CASSANDRA_HOST", CASSANDRA::getHost);
+        r.add("CASSANDRA_PORT", () -> String.valueOf(CASSANDRA.getFirstMappedPort()));
         r.add("spring.cassandra.contact-points", () ->
                 CASSANDRA.getHost() + ":" + CASSANDRA.getFirstMappedPort());
         r.add("spring.cassandra.local-datacenter", () -> "datacenter1");
@@ -88,9 +90,22 @@ public class KafkaSchemaRegistryCassandraIT {
     CqlSession cqlSession;
 
     @BeforeAll
-    static void initSchema(@Autowired CqlSession session) {
-        session.execute("CREATE KEYSPACE IF NOT EXISTS iot_platform WITH replication = {'class':'SimpleStrategy','replication_factor':1};");
-        session.execute("""
+    static void initSchema() throws Exception {
+        // Kafka
+        System.setProperty("spring.kafka.bootstrap-servers", KAFKA.getBootstrapServers());
+        System.setProperty("spring.kafka.consumer.bootstrap-servers", KAFKA.getBootstrapServers());
+        System.setProperty("spring.kafka.producer.bootstrap-servers", KAFKA.getBootstrapServers());
+        System.setProperty("spring.kafka.properties.schema.registry.url",
+                "http://" + SCHEMA_REGISTRY.getHost() + ":" + SCHEMA_REGISTRY.getMappedPort(8081));
+
+        // Cassandra - создаём keyspace и таблицу через CQL
+        try (CqlSession session = CqlSession.builder()
+                .addContactPoint(new InetSocketAddress(CASSANDRA.getHost(), CASSANDRA.getFirstMappedPort()))
+                .withLocalDatacenter("datacenter1")
+                .build()) {
+
+            session.execute("CREATE KEYSPACE IF NOT EXISTS iot_platform WITH replication = {'class':'SimpleStrategy','replication_factor':1};");
+            session.execute("""
             CREATE TABLE IF NOT EXISTS iot_platform.device_events_by_device(
               device_id text,
               event_id text,
@@ -100,7 +115,32 @@ public class KafkaSchemaRegistryCassandraIT {
               PRIMARY KEY (device_id, timestamp, event_id)
             ) WITH CLUSTERING ORDER BY (timestamp DESC)
         """);
+        }
+
+        // Topic creation using the SAME host-mapped bootstrap as Spring
+        String BOOTSTRAP = KAFKA.getHost() + ":" + KAFKA.getFirstMappedPort();
+
+        try (AdminClient admin = AdminClient.create(Map.of(
+                AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP))) {
+
+            String topicName = "events-topic";
+            admin.createTopics(Collections.singleton(new NewTopic(topicName, 1, (short) 1)))
+                    .all().get(30, TimeUnit.SECONDS);
+
+            // Wait until a fresh metadata request sees the topic
+            await().atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(250))
+                    .until(() -> {
+                        try {
+                            return admin.describeTopics(Collections.singletonList(topicName))
+                                    .allTopicNames().get(3, TimeUnit.SECONDS)
+                                    .containsKey(topicName);
+                        } catch (Exception e) {
+                            return false;
+                        }
+                    });
+        }
     }
+
 
 
     @Test
@@ -125,6 +165,7 @@ public class KafkaSchemaRegistryCassandraIT {
             assertEquals("Test", row.getString("type"));
         });
     }
+
 
 
 

@@ -26,19 +26,24 @@ public class DeviceEventService {
     public CompletionStage<Void> save(DeviceEventEntity deviceEvent) {
         String deviceId = deviceEvent.getKey().getDeviceId();
 
-        CompletionStage<RecordMetadata> ackStage = CompletableFuture.completedFuture(null)
+        CompletionStage<Void> ackStage = CompletableFuture.completedFuture(null)
                         .thenCompose(v -> {
-                            if (!seenDevices.contains(deviceId)) {
-                                seenDevices.add(deviceId);
-                                return producer.sendEvent(deviceId);
+                            if (seenDevices.add(deviceId)) {
+                                return producer.sendEvent(deviceId).thenApply(md -> null);
                             } else {
                                 return CompletableFuture.completedFuture(null);
                             }
                         });
 
-        return ackStage.thenRun(() -> {
-                    repository.save(deviceEvent);
-                    log.info("DeviceEvent save success");
+        return ackStage
+                .thenApply(v -> repository.save(deviceEvent))
+                // log the saved entity
+                .thenAccept(saved -> log.info("Device event with id {} saved", deviceId))
+                // throw an exception and remove device id from cache
+                .exceptionally(t -> {
+                    seenDevices.remove(deviceId);
+                    log.error("Error saving device", t);
+                    throw new CompletionException(t);
                 });
-        }
+    }
 }

@@ -6,7 +6,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.CompletableFuture;
@@ -25,7 +24,10 @@ public class EventProducer {
     @WithSpan("eventProducer.sendEvent")
     public CompletableFuture<RecordMetadata> sendEvent(String deviceId) {
         return kafkaTemplate.send(topic, deviceId)
-                .thenApply(SendResult::getRecordMetadata)
+                .thenApply(res -> {
+                    log.info("Event for device {} sent to topic {}", deviceId, topic);
+                    return res.getRecordMetadata();
+                })
                 .exceptionally(ex -> {
                     log.error("Error sending event", ex);
                     throw new CompletionException(ex);

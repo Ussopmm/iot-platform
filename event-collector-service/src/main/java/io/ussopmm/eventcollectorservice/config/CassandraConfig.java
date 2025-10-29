@@ -1,7 +1,6 @@
 package io.ussopmm.eventcollectorservice.config;
 
 import com.datastax.oss.driver.api.core.CqlSession;
-import org.flywaydb.core.Flyway;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,7 +29,7 @@ public class CassandraConfig {
         return CqlSession.builder()
                 .addContactPoint(new InetSocketAddress(contactPoint, port))
                 .withLocalDatacenter(localDc)
-                .withKeyspace("iot_platform")
+                .withKeyspace(System.getenv("CASSANDRA_KEYSPACE"))
                 .build();
     }
 

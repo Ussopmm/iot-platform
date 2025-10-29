@@ -1,14 +1,25 @@
 spring:
   kafka:
+    bootstrap-servers: localhost:9092  # Будет переопределено через @DynamicPropertySource
     consumer:
       group-id: event-collector-group-it
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
+      bootstrap-servers: localhost:9092  # Будет переопределено через @DynamicPropertySource
       properties:
         specific.avro.reader: true
     producer:
+      bootstrap-servers: localhost:9092
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+    properties:
+      allow.auto.create.topics: true
+      schema:
+        registry:
+          url: http://localhost:8081  # Будет переопределено через @DynamicPropertySource
+    concurrency: 1
+    poll-timeout: 2000
+    batch-listener-enabled: true
   flyway:
     enabled: false
   cassandra:

@@ -20,13 +20,12 @@ public class EventListener {
 
     @WithSpan("eventListener.listen")
     @KafkaListener(topics = "${spring.kafka.second-topic.name}",
-            groupId = "event-collector-group",
+            groupId = "${spring.kafka.consumer.group-id}",
             batch = "true",
             containerFactory = "kafkaConsumerContainerFactory"
     )
     public void listen(List<DeviceEvent> deviceEvents) {
         log.info("Event received");
-
         deviceEvents.forEach(deviceEvent -> {
             deviceEventService.save(DeviceEventEntity.builder()
                             .key(DeviceEventEntity.Key.builder()

@@ -7,11 +7,11 @@ spring:
   cassandra:
     contact-points: ${CASSANDRA_HOST}
     port: ${CASSANDRA_PORT}
-    keyspace-name: iot_platform
+    keyspace-name: ${CASSANDRA_KEYSPACE}
     schema-action: create_if_not_exists
-    local-datacenter: datacenter1
-    username: cassandra
-    password: cassandra
+    local-datacenter: ${CASSANDRA_DATACENTER}
+    username: ${CASSANDRA_USER}
+    password: ${CASSANDRA_PASSWORD}
   kafka:
     producer:
       bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
@@ -21,7 +21,7 @@ spring:
         enable.idempotence: true
       acks: all
     consumer:
-      group-id: event-collector-group
+      group-id: ${CONSUMER_GROUP_ID}
       bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
       key-deserializer: org.apache.kafka.common.serialization.StringSerializer
       value-deserializer: io.confluent.kafka.serializers.KafkaAvroSerializer
@@ -33,7 +33,9 @@ spring:
       name: device-id-topic
     second-topic:
       name: events-topic
-
+    concurrency: ${KAFKA_CONCURRENCY}
+    poll-timeout: ${KAFKA_POLL_TIMEOUT}
+    batch-listener-enabled: ${KAFKA_BATCH_LISTENER_ENABLED}
 management:
   endpoints:
     web:

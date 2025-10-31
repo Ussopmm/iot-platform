@@ -59,3 +59,7 @@ otel:
     otlp:
       endpoint: ${ALLOY_URL}
       protocol: http/protobuf
+  logs:
+    exporter: none
+  metrics:
+    exporter: none

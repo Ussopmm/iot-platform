@@ -439,6 +439,48 @@ services:
       retries: 5
       start_period: 30s
 
+  nexus:
+    image: sonatype/nexus3:3.76.0
+    container_name: nexus
+    ports:
+      - "8081:8081"
+    environment:
+      NEXUS_SECURITY_INITIAL_PASSWORD: admin
+      NEXUS_SECURITY_RANDOMPASSWORD: "false"
+      INSTALL4J_ADD_VM_PARAMS: >
+        -Dnexus.sslTrustAll=true
+        -Djavax.net.ssl.trustAll=true
+        -Dcom.sun.net.ssl.checkRevocation=false
+        -Dhttps.protocols=TLSv1.2
+        -Dnexus.skipNpmPeerDependenciesCheck=true
+    volumes:
+      - nexus-data:/nexus-data
+
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8081/service/rest/v1/status" ]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+    networks:
+      - iot-platform-net
+
+  avro-schemas:
+    build:
+      context: ../avro-schemas/
+      dockerfile: Dockerfile
+    ports:
+      - "9097:9097"
+    environment:
+      NEXUS_URL: ${NEXUS_URL}
+      NEXUS_USERNAME: ${NEXUS_USERNAME}
+      NEXUS_PASSWORD: ${NEXUS_PASSWORD}
+    networks:
+      - iot-platform-net
+    depends_on:
+      nexus:
+        condition: service_healthy
+
+
 volumes:
   minio_data:
   pg_data:
@@ -454,6 +496,7 @@ volumes:
   loki_index:
   loki_rules:
   tempo_data:
+  nexus-data:
 
 networks:
   iot-platform-net:

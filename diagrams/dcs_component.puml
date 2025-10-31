@@ -1,0 +1,21 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+Container_Boundary(c1, "Event Collector service") {
+    Component(kafka_consumer_config, "KafkaConsumerConfig.java", "Config class", "Настраивает подключение к Kafka и десериализацию Avro сообщений")
+    Component(event_listener, "EventListener.java", "Kafka Listener", "Слушает события из Kafka топика и сохраняет их в Postgresql")
+    Component(device, "Device.java", "Entity", "Сущность устройства принимаемого из события")
+    Component(device_repository, "DeviceRepository.java", "Repository", "Репозиторий Spring Data JPA для взаимодействия с таблицей Device в Postgresql")
+    Component(device_service, "DeviceService.java", "Service", "Сервисный слой для обработки логики сохранения устройств")
+}
+
+Component_Ext(postgresql_db, "Postgresql", "Шардированная Реляционная БД", "Хранит десериализованные объекты device")
+Component_Ext(kafka_broker, "Kafka Broker", "Message Broker", "Обрабатывает поступающие Avro события от IoT устройств")
+
+Rel(device, device_repository, "Сущность Device которой должна соответствовать таблица в Postgresql")
+Rel(device_service, device_repository, "CRUD operations")
+Rel(event_listener, device_service, "Implements device saving logic")
+Rel(kafka_broker, event_listener, "Sends Avro serialized DeviceEvent")
+Rel(device_repository, postgresql_db, "SQL queries")
+
+@enduml

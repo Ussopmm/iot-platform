@@ -1,0 +1,88 @@
+server:
+  port: 9098
+
+spring:
+  application:
+    name: device-collector-service
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      org.hibernate:
+        envers:
+          autoRegisterListeners: true
+          audit_table_suffix: _history
+          default_schema: device_history
+          store_data_at_delete: true
+          revision_field_name: revision
+          revision_type_field_name: revision_type
+          revision_sequence_name: person_history.revinfo_seq
+        hibernate:
+          default_schema: device
+          show_sql: ${SHOW_SQL:true}
+          format_sql: ${FORMAT_SQL:true}
+          highlight_sql: ${HIGHLIGHT_SQL:true}
+          session.events.log.LOG_QUERIES_SLOWER_THAN_MS: ${SLOW_SQL_QUERY_INDICATOR_MS:15000}
+          hbm2ddl:
+            auto: validate
+    show-sql: true
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    user: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:postgres}
+    baseline-version: 1
+    url: ${DATABASE_URL}
+    baseline-on-migrate: true
+    validate-on-migrate: true
+    schemas:
+      - device
+  kafka:
+    consumer:
+      group-id: ${DEVICE_COLLECTOR_KAFKA_CONSUMER_GROUP_ID:device-collector-group}
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
+      max-poll-records: 50
+    properties:
+      schema.registry.url: ${SCHEMA_REGISTRY_URL:schema-registry:8081}
+      specific.avro.reader: true
+    concurrency: ${KAFKA_CONCURRENCY}
+    poll-timeout: ${KAFKA_POLL_TIMEOUT}
+    batch-listener-enabled: ${KAFKA_BATCH_LISTENER_ENABLED}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    prometheus:
+      access: read-only
+    health:
+      show-details: always
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+otel:
+  exporter:
+    otlp:
+      endpoint: ${ALLOY_URL}
+      protocol: http/protobuf
+  logs:
+    exporter: none
+  metrics:
+    exporter: none
+logging:
+  config: "classpath:logback.xml"
+

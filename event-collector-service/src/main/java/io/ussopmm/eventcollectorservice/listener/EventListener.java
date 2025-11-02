@@ -1,5 +1,6 @@
 package io.ussopmm.eventcollectorservice.listener;
 
+import com.nashkod.avro.Device;
 import com.nashkod.avro.DeviceEvent;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
 import io.ussopmm.eventcollectorservice.entity.DeviceEventEntity;

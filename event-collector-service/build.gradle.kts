@@ -37,11 +37,15 @@ configurations {
 
 repositories {
     mavenCentral()
+    mavenLocal()
 //    SOLUTION FOR exception "Could not find io.confluent:kafka-avro-serializer:8.0.0."
     maven { url = uri("https://packages.confluent.io/maven/") }
 }
 
 dependencies {
+    //NEXUS
+    implementation("io.ussopmm:avro-schemas:1.0.0-SNAPSHOT")
+
     implementation("org.springframework.boot:spring-boot-starter")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-web")
@@ -90,4 +94,41 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+
+/*
+──────────────────────────────────────────────────────
+============== Resolve NEXUS credentials =============
+──────────────────────────────────────────────────────
+*/
+
+file(".env").takeIf { it.exists() }?.readLines()?.forEach {
+    val (k, v) = it.split("=", limit = 2)
+    System.setProperty(k.trim(), v.trim())
+    logger.lifecycle("${k.trim()}=${v.trim()}")
+}
+
+val nexusUrl = System.getenv("NEXUS_URL") ?: System.getProperty("NEXUS_URL")
+val nexusUser = System.getenv("NEXUS_USERNAME") ?: System.getProperty("NEXUS_USERNAME")
+val nexusPassword = System.getenv("NEXUS_PASSWORD") ?: System.getProperty("NEXUS_PASSWORD")
+
+if (nexusUrl.isNullOrBlank() || nexusUser.isNullOrBlank() || nexusPassword.isNullOrBlank()) {
+    throw GradleException(
+        "NEXUS_URL or NEXUS_USER or NEXUS_PASSWORD not set. " +
+                "Please create a .env file with these properties or set environment variables."
+    )
+}
+
+
+repositories {
+    mavenCentral()
+    maven {
+        url = uri(nexusUrl)
+        isAllowInsecureProtocol = true
+        credentials {
+            username = nexusUser
+            password = nexusPassword
+        }
+    }
 }

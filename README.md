@@ -16,13 +16,21 @@
 
 **ecs_component.puml** - описывает внутреннее устройство сервиса Event Collector Service
 
-[Компоненты системы (ecs_component.puml)](./diagrams/ecs_component.puml)
+[Компоненты системы (ecs_component.puml)](./diagrams/ecs-diagrams/ecs_component.puml)
 
 **processing_sequence.puml** - диаграмма последовательности обработки события от момента получения события
 до момента записи в базу данных
 
-[Sequence diagram (processing_sequence.puml)](./diagrams/processing_sequence.puml)
+[Sequence diagram (processing_sequence.puml)](./diagrams/ecs-diagrams/processing_sequence.puml)
 
+**dcs_component.puml** - описывает внутреннее устройство сервиса Device Collector Service
+
+[Компоненты системы (dcs_component.puml)](./diagrams/dcs-diagrams/dcs_component.puml)
+
+**dcs_sequence_diagram.puml** - диаграмма последовательности обработки данных устройства от момента получения данных
+до момента записи в базу данных с учетом возможных ошибок
+
+[Sequence diagram (dcs_sequence_diagram.puml)](./diagrams/dcs-diagrams/dcs_sequence_diagram.puml)
 
 # Инструкция по запуску системы
 

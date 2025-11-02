@@ -1,11 +1,11 @@
 @startuml
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
 
-Container_Boundary(c1, "Event Collector service") {
+Container_Boundary(c1, "Device Collector service") {
     Component(kafka_consumer_config, "KafkaConsumerConfig.java", "Config class", "Настраивает подключение к Kafka и десериализацию Avro сообщений")
     Component(event_listener, "EventListener.java", "Kafka Listener", "Слушает события из Kafka топика и сохраняет их в Postgresql")
     Component(device, "Device.java", "Entity", "Сущность устройства принимаемого из события")
-    Component(device_repository, "DeviceRepository.java", "Repository", "Репозиторий Spring Data JPA для взаимодействия с таблицей Device в Postgresql")
+    Component(device_repository, "DeviceRepository.java", "Repository", "Репозиторий Spring Data JPA встроенный с ShardingSphere-JDBC для взаимодействия с таблицей Device в Postgresql")
     Component(device_service, "DeviceService.java", "Service", "Сервисный слой для обработки логики сохранения устройств")
 }
 

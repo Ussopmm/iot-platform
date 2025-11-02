@@ -11,7 +11,8 @@ System_Boundary(platform, "IoT Monitoring Platform") {
     Container(minio, "MinIO", "Объектное хранилище", "Хранение артефактов/ошибок (DLQ)")
     Container_Ext(schema_registry, "Schema Registry", "Реестр схем Kafka")
     Container_Ext(kafka_ui, "Kafka UI", "Веб-интерфейс Kafka")
-
+    Container_Ext(nexus, "Nexus", "Артефактный репозиторий", "Репозиторий для хранение артефактов сборки")
+    Container(avro_schemas, "Avro Schemas", "Централизованное хранилище Авро схем", "Модуль для хранения всех Avro схем и их версий")
     Boundary(obs, "Observability") {
         Container(alloy, "Alloy", "Агент телеметрии", "Сбор и маршрутизация логов/метрик")
         Container(prometheus, "Prometheus", "TSDB", "Хранение/запрос метрик")
@@ -62,5 +63,9 @@ Rel(event_collector_service, cassandra_cluster, "Запись событий")
 Rel(device_collector_service, postgresql_dcs, "Write/Update device")
 Rel(device_collector_service, schema_registry, "Retrieve/Register Avro schema")
 Rel(event_collector_service, schema_registry, "Retrieve/Register Avro schema")
+
+Rel(avro_schemas, nexus, "Publish artifact (jar-file) in Nexus")
+Rel(event_collector_service, nexus, "Get Avro schemas artifact (jar-file) from Nexus")
+Rel(device_collector_service, nexus, "Get Avro schemas artifact (jar-file) from Nexus")
 
 @enduml

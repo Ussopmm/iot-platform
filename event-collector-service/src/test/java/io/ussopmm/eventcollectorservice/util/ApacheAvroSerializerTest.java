@@ -1,5 +1,6 @@
 package io.ussopmm.eventcollectorservice.util;
 
+import com.nashkod.avro.Device;
 import com.nashkod.avro.DeviceEvent;
 import io.confluent.kafka.schemaregistry.client.MockSchemaRegistryClient;
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
@@ -51,9 +52,11 @@ public class ApacheAvroSerializerTest {
         KafkaAvroDeserializer deserializer =  new KafkaAvroDeserializer(registry);
         deserializer.configure(serdeProps, false);
 
+
         // Подготовим Avro-объект и сериализуем его в байты
+        var device = new Device("dev-1", "testType", 1L, "testMetadata");
         DeviceEvent original = DeviceEvent.newBuilder()
-                .setDeviceId("dev-777")
+                .setDevice(device)
                 .setEventId("evt-999")
                 .setTimestamp(1729799999000L)
                 .setType("TEST")
@@ -80,10 +83,18 @@ public class ApacheAvroSerializerTest {
         DeviceEvent decoded = (DeviceEvent) roundTrip;
 
         assertThat(decoded).isEqualTo(original);
-        assertThat(decoded.getDeviceId()).isEqualTo("dev-777");
         assertThat(decoded.getEventId()).isEqualTo("evt-999");
         assertThat(decoded.getType()).isEqualTo("TEST");
         assertThat(decoded.getPayload()).contains("test");
+        assertThat(decoded.getTimestamp()).isEqualTo(1729799999000L);
+
+// Проверка вложенного объекта Device
+        assertThat(decoded.getDevice()).isNotNull();
+        assertThat(decoded.getDevice().getDeviceId()).isEqualTo("dev-1");
+        assertThat(decoded.getDevice().getDeviceType()).isEqualTo("testType");
+        assertThat(decoded.getDevice().getCreatedAt()).isEqualTo(1L);
+        assertThat(decoded.getDevice().getMeta()).isEqualTo("testMetadata");
+
 
 
         serializer.close();

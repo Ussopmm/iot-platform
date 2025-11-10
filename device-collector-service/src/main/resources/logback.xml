@@ -9,7 +9,9 @@
         <encoder>
             <pattern>{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}", "trace_id": "%X{trace_id}",
                 "span_id":"%X{span_id}", "level":"%level", "thread":"%thread",
-                "logger":"%logger{36}","message":"%msg"}%n
+                "logger":"%logger{36}","message":"%msg","topic":"%replace(%X{topic}){'^$','-'}",
+                "partition":"%replace(%X{partition}){'^$','-'}","offset":"%replace(%X{offset}){'^$','-'}",
+                "deviceId":"%replace(%X{deviceId}){'^$','-'}", "shard":"%replace(%X{shard}){'^$','-'}"}%n
             </pattern>
         </encoder>
     </appender>

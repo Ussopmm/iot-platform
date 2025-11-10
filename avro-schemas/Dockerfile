@@ -1,7 +1,7 @@
 # STAGE 1. BUILD
 FROM gradle:8.14.2-jdk24 AS build
 
-ARG NEXUS_URL=http://host.docker.internal:8082/repository/maven-snapshots
+ARG NEXUS_URL=http://host.docker.internal:8081/repository/maven-snapshots
 ARG NEXUS_USERNAME=admin
 ARG NEXUS_PASSWORD=admin
 
@@ -16,7 +16,6 @@ COPY settings.gradle.kts .
 COPY src ./src
 RUN gradle build --no-daemon -x test
 RUN gradle publish --info
-
 
 
 # STAGE 2. RUN

@@ -4,7 +4,16 @@
   "namespace": "com.nashkod.avro",
   "fields": [
     { "name": "eventId", "type": "string" },
-    { "name": "deviceId", "type": "string" },
+    { "name": "device", "type": {
+      "type": "record",
+      "name": "Device",
+      "fields": [
+        {"name": "deviceId", "type": "string"},
+        {"name": "deviceType", "type": "string"},
+        {"name": "createdAt", "type": "long"},
+        {"name": "meta", "type": "string"}
+      ]
+    } },
     { "name": "timestamp", "type": "long" },
     { "name": "type", "type": "string" },
     { "name": "payload", "type": "string" }

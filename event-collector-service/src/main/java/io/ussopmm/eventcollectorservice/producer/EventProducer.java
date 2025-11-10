@@ -1,5 +1,6 @@
 package io.ussopmm.eventcollectorservice.producer;
 
+import com.nashkod.avro.Device;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,16 +17,16 @@ import java.util.concurrent.CompletionException;
 @RequiredArgsConstructor
 public class EventProducer {
 
-    private final KafkaTemplate<String, String> kafkaTemplate;
+    private final KafkaTemplate<String, Device> kafkaTemplate;
 
     @Value("${spring.kafka.first-topic.name}")
     private String topic;
 
     @WithSpan("eventProducer.sendEvent")
-    public CompletableFuture<RecordMetadata> sendEvent(String deviceId) {
-        return kafkaTemplate.send(topic, deviceId)
+    public CompletableFuture<RecordMetadata> sendEvent(Device device) {
+        return kafkaTemplate.send(topic, device)
                 .thenApply(res -> {
-                    log.info("Event for device {} sent to topic {}", deviceId, topic);
+                    log.info("Event for device {} sent to topic {}", device.getDeviceId(), topic);
                     return res.getRecordMetadata();
                 })
                 .exceptionally(ex -> {

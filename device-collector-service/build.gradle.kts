@@ -6,8 +6,12 @@ val versions = mapOf(
     "kafkaAvroSerializerVersion" to "8.0.0",
     "opentelemetryInstrumentationVersion" to "2.11.0",
     "springKafkaTestVersion" to "3.3.10",
-    "flywayVersion" to "11.3.3",
-    "hibernateEnversVersion" to "7.1.0.Final"
+    "flywayVersion" to "11.15.0",
+    "hibernateEnversVersion" to "7.1.0.Final",
+    "avroSchemasVersion" to "1.0.0-SNAPSHOT",
+    "apacheShardingSphereVersion" to "5.5.2",
+    "postgresqlVersion" to "42.7.4",
+    "resilience4jVersion" to "2.3.0"
 )
 
 plugins {
@@ -33,9 +37,20 @@ configurations {
 	}
 }
 
+configurations.all {
+    resolutionStrategy.dependencySubstitution {
+        // unify to GlassFish coordinates
+        substitute(module("com.sun.xml.bind:jaxb-core"))
+            .using(module("org.glassfish.jaxb:jaxb-core:4.0.5"))
+        substitute(module("com.sun.xml.bind:jaxb-impl"))
+            .using(module("org.glassfish.jaxb:jaxb-runtime:4.0.5"))
+    }
+}
+
+
 repositories {
-    mavenLocal()
     mavenCentral()
+    mavenLocal()
     maven { url = uri("https://packages.confluent.io/maven/") }
 }
 
@@ -44,6 +59,7 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-webflux")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 
     // KAFKA
@@ -61,12 +77,14 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:${versions["logbackClassicVersion"]}")
 
     // PERSISTENCE
-    implementation("org.postgresql:postgresql")
-    implementation("org.hibernate.orm:hibernate-envers:${versions["hibernateEnversVersion"]}")
+    implementation("org.postgresql:postgresql:${versions["postgresqlVersion"]}")
+    implementation("org.hibernate.orm:hibernate-envers")
+    implementation("org.apache.shardingsphere:shardingsphere-jdbc:${versions["apacheShardingSphereVersion"]}")
 
     // FLYWAY MIGRATIONS
     implementation("org.flywaydb:flyway-core:${versions["flywayVersion"]}")
-    runtimeOnly("org.flywaydb:flyway-database-cassandra:${versions["flywayVersion"]}")
+    runtimeOnly("org.flywaydb:flyway-database-postgresql:${versions["flywayVersion"]}")
+
 
     // HELPERS
     compileOnly("org.projectlombok:lombok")
@@ -74,16 +92,21 @@ dependencies {
 
     // TESTS
     testImplementation("org.springframework.boot:spring-boot-starter-test")
-	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation("io.projectreactor:reactor-test")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+//    implementation("org.springframework.boot:spring-boot-starter-webflux-test")
 
     // NEXUS DEPS
-    implementation("io.ussopmm:avro-schemas:1.0.0-SNAPSHOT")
+    implementation("io.ussopmm:avro-schemas:${versions["avroSchemasVersion"]}")
+
+    // RESILIENCE4J
+    implementation("io.github.resilience4j:resilience4j-retry:${versions["resilience4jVersion"]}")
+
 }
 
 tasks.withType<Test> {
 	useJUnitPlatform()
 }
-
 
 
 /*
@@ -92,10 +115,21 @@ tasks.withType<Test> {
 ──────────────────────────────────────────────────────
 */
 
-file(".env").takeIf { it.exists() }?.readLines()?.forEach {
-    val (k, v) = it.split("=", limit = 2)
-    System.setProperty(k.trim(), v.trim())
-    logger.lifecycle("${k.trim()}=${v.trim()}")
+//file(".env").takeIf { it.exists() }?.readLines()?.forEach {
+//    val (k, v) = it.split("=", limit = 2)
+//    System.setProperty(k.trim(), v.trim())
+//    logger.lifecycle("${k.trim()}=${v.trim()}")
+//}
+
+file(".env").takeIf { it.exists() }?.readLines()?.forEach { line ->
+    if (line.isNotBlank() && line.contains("=")) {
+        val parts = line.split("=", limit = 2)
+        if (parts.size == 2) {
+            val (k, v) = parts
+            System.setProperty(k.trim(), v.trim())
+            logger.lifecycle("${k.trim()}=${v.trim()}")
+        }
+    }
 }
 
 val nexusUrl = System.getenv("NEXUS_URL") ?: System.getProperty("NEXUS_URL")

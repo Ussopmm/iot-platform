@@ -30,7 +30,7 @@ spring:
       schema.registry.url:  ${SCHEMA_REGISTRY_URL}
       specific.avro.reader: true
     first-topic:
-      name: device-id-topic
+      name: device-topic
     second-topic:
       name: events-topic
     concurrency: ${KAFKA_CONCURRENCY}

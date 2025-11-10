@@ -28,15 +28,7 @@ public class EventListener {
     public void listen(List<DeviceEvent> deviceEvents) {
         log.info("Event received");
         deviceEvents.forEach(deviceEvent -> {
-            deviceEventService.save(DeviceEventEntity.builder()
-                            .key(DeviceEventEntity.Key.builder()
-                                    .deviceId(deviceEvent.getDeviceId())
-                                    .eventId(deviceEvent.getEventId())
-                                    .timestamp(deviceEvent.getTimestamp())
-                                    .build())
-                            .type(deviceEvent.getType())
-                            .payload(deviceEvent.getPayload())
-                            .build())
+            deviceEventService.save(deviceEvent)
                     .toCompletableFuture().join();
         });
 

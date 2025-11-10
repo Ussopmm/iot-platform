@@ -2,6 +2,7 @@ package io.ussopmm.eventcollectorservice.it;
 
 import com.datastax.oss.driver.api.core.CqlSession;
 import com.datastax.oss.driver.api.core.cql.Row;
+import com.nashkod.avro.Device;
 import com.nashkod.avro.DeviceEvent;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
@@ -146,8 +147,10 @@ public class KafkaSchemaRegistryCassandraIT {
     @Test
     public void kafka_cassandra_test_shouldSendEventToKafkaTopicConsumeFromKafkaAndStoreInCassandra() {
         // Create an object
+        var device = new Device("dev-1", "testType", 1L, "testMetadata");
+
         DeviceEvent deviceEvent = DeviceEvent.newBuilder()
-                .setDeviceId("d-123")
+                .setDevice(device)
                 .setEventId("e-999")
                 .setTimestamp(System.currentTimeMillis())
                 .setType("Test")

@@ -1,5 +1,6 @@
 package io.ussopmm.eventcollectorservice.producer;
 
+import com.nashkod.avro.Device;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,46 +22,46 @@ public class EventProducerTest {
     @Test
     public void sendEvent_ShouldSendEventToKafkaTopic() {
         //given
-        KafkaTemplate<String, String> kafkaTemplate = mock(KafkaTemplate.class);
+        KafkaTemplate<String, Device> kafkaTemplate = mock(KafkaTemplate.class);
         EventProducer producer = new EventProducer(kafkaTemplate);
-        ReflectionTestUtils.setField(producer, "topic", "device-id-topic");
-        String deviceId = "device123";
+        ReflectionTestUtils.setField(producer, "topic", "device-topic");
+        Device device = new Device("dev-1", "testType", 1L, "testMetadata");
 
-        SendResult<String, String> sendResult = mock(SendResult.class);
+        SendResult<String, Device> sendResult = mock(SendResult.class);
         RecordMetadata recordMetadata = mock(RecordMetadata.class);
         when(sendResult.getRecordMetadata()).thenReturn(recordMetadata);
-        when(kafkaTemplate.send("device-id-topic", deviceId))
+        when(kafkaTemplate.send("device-id-topic", device))
                 .thenReturn(CompletableFuture.completedFuture(sendResult));
 
         //when
-        CompletableFuture<RecordMetadata> result = producer.sendEvent(deviceId);
+        CompletableFuture<RecordMetadata> result = producer.sendEvent(device);
         //then
         assertThat(result.join()).isEqualTo(recordMetadata);
-        verify(kafkaTemplate).send("device-id-topic", deviceId);
+        verify(kafkaTemplate).send("device-topic", device);
         verifyNoMoreInteractions(kafkaTemplate);
     }
 
     @Test
     public void sendEvent_ShouldThrowExceptionWhenKafkaFails() {
         //given
-        KafkaTemplate<String, String> kafkaTemplate = mock(KafkaTemplate.class);
+        KafkaTemplate<String, Device> kafkaTemplate = mock(KafkaTemplate.class);
         EventProducer producer = new EventProducer(kafkaTemplate);
-        ReflectionTestUtils.setField(producer, "topic", "device-id-topic");
-        String deviceId = "device123";
+        ReflectionTestUtils.setField(producer, "topic", "device-topic");
+        Device device = new Device("dev-1", "testType", 1L, "testMetadata");
 
-        CompletableFuture<SendResult<String, String>> failedFuture = new CompletableFuture<>();
+        CompletableFuture<SendResult<String, Device>> failedFuture = new CompletableFuture<>();
         failedFuture.completeExceptionally(new RuntimeException("Kafka Error"));
 
-        when(kafkaTemplate.send("device-id-topic", deviceId))
+        when(kafkaTemplate.send("device-topic", device))
                 .thenReturn(failedFuture);
         //when
-        CompletableFuture<RecordMetadata> result = producer.sendEvent(deviceId);
+        CompletableFuture<RecordMetadata> result = producer.sendEvent(device);
         //then
         assertThatThrownBy(() -> result.join())
                 .isInstanceOf(CompletionException.class)
                 .hasCauseInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Kafka Error");
-        verify(kafkaTemplate).send("device-id-topic", deviceId);
+        verify(kafkaTemplate).send("device-topic", device);
         verifyNoMoreInteractions(kafkaTemplate);
     }
 

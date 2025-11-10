@@ -1,5 +1,7 @@
 package io.ussopmm.eventcollectorservice.service;
 
+import com.nashkod.avro.Device;
+import com.nashkod.avro.DeviceEvent;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
 import io.ussopmm.eventcollectorservice.entity.DeviceEventEntity;
 import io.ussopmm.eventcollectorservice.producer.EventProducer;
@@ -23,25 +25,33 @@ public class DeviceEventService {
     private final EventProducer producer;
 
     @WithSpan("deviceEventService.save")
-    public CompletionStage<Void> save(DeviceEventEntity deviceEvent) {
-        String deviceId = deviceEvent.getKey().getDeviceId();
+    public CompletionStage<Void> save(DeviceEvent deviceEvent) {
+        Device device = deviceEvent.getDevice();
 
         CompletionStage<Void> ackStage = CompletableFuture.completedFuture(null)
                         .thenCompose(v -> {
-                            if (seenDevices.add(deviceId)) {
-                                return producer.sendEvent(deviceId).thenApply(md -> null);
+                            if (seenDevices.add(device.getDeviceId())) {
+                                return producer.sendEvent(device).thenApply(md -> null);
                             } else {
                                 return CompletableFuture.completedFuture(null);
                             }
                         });
 
         return ackStage
-                .thenApply(v -> repository.save(deviceEvent))
+                .thenApply(v -> repository.save(DeviceEventEntity.builder()
+                        .key(DeviceEventEntity.Key.builder()
+                                .deviceId(deviceEvent.getDevice().getDeviceId())
+                                .eventId(deviceEvent.getEventId())
+                                .timestamp(deviceEvent.getTimestamp())
+                                .build())
+                        .type(deviceEvent.getType())
+                        .payload(deviceEvent.getPayload())
+                        .build()))
                 // log the saved entity
-                .thenAccept(saved -> log.info("Device event with id {} saved", deviceId))
+                .thenAccept(saved -> log.info("Device event with id {} saved", deviceEvent.getEventId()))
                 // throw an exception and remove device id from cache
                 .exceptionally(t -> {
-                    seenDevices.remove(deviceId);
+                    seenDevices.remove(device.getDeviceId());
                     log.error("Error saving device", t);
                     throw new CompletionException(t);
                 });

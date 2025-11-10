@@ -19,5 +19,7 @@ alt ошибка сохранения/шардинга
     DCS -> SSJDBC : retry with backoff 3 times
     DCS -> KP : отправить в Dead Letter Topic
 end
+DCS -> KafkaBroker : commiting offset\n(фиксация смещения\nвнутри партиции)
+
 DCS -> DCS : логирование, метрики, определение shard-ключа
 @enduml

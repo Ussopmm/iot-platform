@@ -5,13 +5,11 @@ spring:
   application:
     name: device-collector-service
   datasource:
-    driver-class-name: org.postgresql.Driver
-    url: ${DATABASE_URL}
-    username: ${DATABASE_USERNAME}
-    password: ${DATABASE_PASSWORD}
+    driver-class-name: org.apache.shardingsphere.driver.ShardingSphereDriver
+    url: jdbc:shardingsphere:classpath:sharding.yml
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none
     properties:
       org.hibernate:
         envers:
@@ -30,32 +28,33 @@ spring:
           session.events.log.LOG_QUERIES_SLOWER_THAN_MS: ${SLOW_SQL_QUERY_INDICATOR_MS:15000}
           hbm2ddl:
             auto: validate
+          jdbc:
+            batch_size: 50
+            order_inserts: true
+            order_updates: true
+            batch_versioned_data: true
     show-sql: true
     database-platform: org.hibernate.dialect.PostgreSQLDialect
   flyway:
-    enabled: true
-    user: ${DATABASE_USERNAME:postgres}
-    password: ${DATABASE_PASSWORD:postgres}
-    baseline-version: 1
-    url: ${DATABASE_URL}
-    baseline-on-migrate: true
-    validate-on-migrate: true
-    schemas:
-      - device
+    enabled: false
   kafka:
     consumer:
       group-id: ${DEVICE_COLLECTOR_KAFKA_CONSUMER_GROUP_ID:device-collector-group}
-      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9093}
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
       max-poll-records: 50
+      enable-auto-commit: false
     properties:
-      schema.registry.url: ${SCHEMA_REGISTRY_URL:schema-registry:8081}
+      schema.registry.url: ${SCHEMA_REGISTRY_URL:schema-registry:8082}
       specific.avro.reader: true
     concurrency: ${KAFKA_CONCURRENCY}
     poll-timeout: ${KAFKA_POLL_TIMEOUT}
     batch-listener-enabled: ${KAFKA_BATCH_LISTENER_ENABLED}
-
+    topic:
+      name: device-topic
+    dlt-topic:
+      name: device-topic.DLT
 management:
   endpoints:
     web:
@@ -85,4 +84,6 @@ otel:
     exporter: none
 logging:
   config: "classpath:logback.xml"
-
+  level:
+    org.flywaydb: DEBUG
+    org.springframework.jdbc: DEBUG

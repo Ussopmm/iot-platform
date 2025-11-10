@@ -1,5 +1,7 @@
 package io.ussopmm.eventcollectorservice.service;
 
+import com.nashkod.avro.Device;
+import com.nashkod.avro.DeviceEvent;
 import io.ussopmm.eventcollectorservice.entity.DeviceEventEntity;
 import io.ussopmm.eventcollectorservice.producer.EventProducer;
 import io.ussopmm.eventcollectorservice.repository.DeviceEventRepository;
@@ -46,27 +48,31 @@ class DeviceEventServiceTest {
     @Test
     void save_newDevice_publishesAndSaves() {
         //given
-        var e = entity("dev-1");
-        when(eventProducer.sendEvent("dev-1"))
+        var device = new Device("dev-1", "testType", 1L, "testMetadata");
+        DeviceEvent deviceEvent = new DeviceEvent("evt-1", device, 123L, "TYPE", "{}");
+        DeviceEventEntity deviceEventEntity = entity("dev-1");
+        when(eventProducer.sendEvent(device))
                 .thenReturn(completedFuture(mock(RecordMetadata.class)));
         //when
-        deviceEventService.save(e);
+        deviceEventService.save(deviceEvent);
 
         //then
-        verify(eventProducer).sendEvent("dev-1");
-        verify(repository, timeout(500)).save(e);
+        verify(eventProducer).sendEvent(device);
+        verify(repository, timeout(500)).save(deviceEventEntity);
         verifyNoMoreInteractions(eventProducer, repository);
     }
 
     @Test
     void save_newDevice_producerFails_doesNotSave_andStageIsExceptional() {
         // given
+        var device = new Device("dev-1", "testType", 1L, "testMetadata");
+        DeviceEvent deviceEvent = new DeviceEvent("evt-1", device, 123L, "TYPE", "{}");
         var e = entity("dev-1");
-        when(eventProducer.sendEvent("dev-1"))
+        when(eventProducer.sendEvent(device))
                 .thenReturn(CompletableFuture.failedFuture(new RuntimeException("kafka down")));
 
         // when
-        CompletionStage<Void> stage = deviceEventService.save(e);
+        CompletionStage<Void> stage = deviceEventService.save(deviceEvent);
 
         // then: the joined call throws; repository.save is never invoked
         assertThatThrownBy(() -> stage.toCompletableFuture().join())
@@ -74,7 +80,7 @@ class DeviceEventServiceTest {
                 .hasCauseInstanceOf(RuntimeException.class)
                 .hasMessageContaining("kafka down");
 
-        verify(eventProducer).sendEvent("dev-1");
+        verify(eventProducer).sendEvent(device);
         verify(repository, never()).save(any());
         verifyNoMoreInteractions(eventProducer, repository);
     }
@@ -82,19 +88,21 @@ class DeviceEventServiceTest {
     @Test
     void save_existingDevice_doesNotPublishButStillSaves() {
         // given
+        var device = new Device("dev-1", "testType", 1L, "testMetadata");
+        DeviceEvent deviceEvent = new DeviceEvent("evt-1", device, 123L, "TYPE", "{}");
         var e = entity("dev-1");
 
-        when(eventProducer.sendEvent("dev-1"))
+        when(eventProducer.sendEvent(device))
                 .thenReturn(completedFuture(mock(RecordMetadata.class)));
-        deviceEventService.save(e).toCompletableFuture().join();
+        deviceEventService.save(deviceEvent).toCompletableFuture().join();
         reset(eventProducer, repository);
         when(repository.save(any(DeviceEventEntity.class))).thenReturn(e);
         // when
-        var stage = deviceEventService.save(e);
+        var stage = deviceEventService.save(deviceEvent);
 
         // then
         stage.toCompletableFuture().join();
-        verify(eventProducer, never()).sendEvent(anyString());
+        verify(eventProducer, never()).sendEvent(any(Device.class));
         verify(repository).save(e);
         verifyNoMoreInteractions(eventProducer, repository);
     }
@@ -102,15 +110,16 @@ class DeviceEventServiceTest {
     @Test
     void shouldRemoveFromSeenDevicesWhenDBSaveFails() throws NoSuchFieldException, IllegalAccessException {
         // given
+        var device = new Device("dev-1", "testType", 1L, "testMetadata");
+        DeviceEvent deviceEvent = new DeviceEvent("evt-1", device, 123L, "TYPE", "{}");
         var event = entity("dev-1");
-        String deviceId = event.getKey().getDeviceId();
 
-        when(eventProducer.sendEvent("dev-1"))
+        when(eventProducer.sendEvent(device))
                 .thenReturn(completedFuture(null));
         when(repository.save(any(DeviceEventEntity.class)))
                 .thenThrow(new RuntimeException("DB error"));
         // when
-        CompletionStage<Void> stage = deviceEventService.save(event);
+        CompletionStage<Void> stage = deviceEventService.save(deviceEvent);
 
         // then
         assertThatThrownBy(() -> stage.toCompletableFuture().join())
@@ -118,14 +127,14 @@ class DeviceEventServiceTest {
                 .hasCauseInstanceOf(RuntimeException.class)
                 .hasMessageContaining("DB error");
 
-        verify(eventProducer).sendEvent(deviceId);
+        verify(eventProducer).sendEvent(device);
         verify(repository).save(event);
         // доступ к приватному полю seenDevices через рефлексию и проверка, что deviceId удалён
         java.lang.reflect.Field f = DeviceEventService.class.getDeclaredField("seenDevices");
         f.setAccessible(true);
         @SuppressWarnings("unchecked")
         java.util.Set<String> seenDevices = (java.util.Set<String>) f.get(deviceEventService);
-        assertThat(seenDevices).doesNotContain(deviceId);
+        assertThat(seenDevices).doesNotContain(device.getDeviceId());
         verifyNoMoreInteractions(eventProducer, repository);
 
     }

@@ -1,0 +1,51 @@
+dataSources:
+  shard_master_0:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    jdbcUrl: jdbc:postgresql://localhost:5434/devices?currentSchema=device
+    username: postgres
+    password: postgres
+  shard_replica_0:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    jdbcUrl: jdbc:postgresql://localhost:5435/devices?currentSchema=device
+    username: postgres
+    password: postgres
+  shard_master_1:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    jdbcUrl: jdbc:postgresql://localhost:5436/devices?currentSchema=device
+    username: postgres
+    password: postgres
+  shard_replica_1:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    jdbcUrl: jdbc:postgresql://localhost:5437/devices?currentSchema=device
+    username: postgres
+    password: postgres
+rules:
+- !READWRITE_SPLITTING
+  dataSourceGroups:
+    shard0:
+      writeDataSourceName: shard_master_0
+      readDataSourceNames: [ shard_replica_0 ]
+      loadBalancerName: roundRobin
+    shard1:
+      writeDataSourceName: shard_master_1
+      readDataSourceNames: [ shard_replica_1 ]
+      loadBalancerName: roundRobin
+  loadBalancers:
+    roundRobin:
+      type: ROUND_ROBIN
+
+- !SHARDING
+  tables:
+    devices:
+      actualDataNodes: shard_master_${0..1}.devices
+      tableStrategy:
+        none:
+      databaseStrategy:
+        standard:
+          shardingColumn: device_id
+          shardingAlgorithmName: deviceid_hash_mod
+  shardingAlgorithms:
+    deviceid_hash_mod:
+      type: INLINE
+      props:
+        algorithm-expression: shard_master_${Math.abs(device_id.hashCode()) % 2}

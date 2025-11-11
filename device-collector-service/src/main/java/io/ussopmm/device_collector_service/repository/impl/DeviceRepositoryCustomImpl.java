@@ -19,11 +19,10 @@ import java.util.List;
 public class DeviceRepositoryCustomImpl implements DeviceRepositoryCustom {
 
     private final NamedParameterJdbcTemplate jdbc;
-    private final ObjectMapper objectMapper;
 
     private static final String UPSERT_SQL = """
         INSERT INTO device.devices (device_id, device_type, created_at, meta)
-        VALUES (:deviceId, :deviceType, :createdAt, CAST(:meta AS jsonb))
+        VALUES (:deviceId, :deviceType, :createdAt, :meta)
         ON CONFLICT (device_id) DO UPDATE
         SET device_type = EXCLUDED.device_type,
             created_at  = EXCLUDED.created_at,
@@ -32,6 +31,10 @@ public class DeviceRepositoryCustomImpl implements DeviceRepositoryCustom {
 
     @Override
     public long upsertBatch(List<DeviceEntity> batch, ShardMetrics metrics) {
+        if (batch == null || batch.isEmpty()) {
+            return 0;
+        }
+
         var params = batch.stream().map(d -> new MapSqlParameterSource()
                 .addValue("deviceId", d.getDeviceId())
                 .addValue("deviceType", d.getDeviceType())
@@ -53,6 +56,10 @@ public class DeviceRepositoryCustomImpl implements DeviceRepositoryCustom {
 
     @Override
     public int upsertOne(DeviceEntity d, ShardMetrics metrics) {
+        if (d.getDeviceId() == null || d.getDeviceId().isEmpty()) {
+            throw new IllegalArgumentException("deviceId cannot be null or empty");
+        }
+
         var p = new MapSqlParameterSource()
                 .addValue("deviceId", d.getDeviceId())
                 .addValue("deviceType", d.getDeviceType())

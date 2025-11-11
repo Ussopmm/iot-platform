@@ -4,29 +4,32 @@ import com.nashkod.avro.Device;
 import io.ussopmm.device_collector_service.helpers.ShardMetrics;
 import io.ussopmm.device_collector_service.service.DeviceService;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.header.Headers;
 import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.kafka.support.SendResult;
 import reactor.core.publisher.Mono;
 
-import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
-
+import static org.awaitility.Awaitility.await;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 @ExtendWith(MockitoExtension.class)
 class DeviceListenerTest {
@@ -73,42 +76,62 @@ class DeviceListenerTest {
 
     @Test
     void listen_whenNonTransientError_shouldSendAllToDLT_andAck_andIncMetricWithCode() {
-        // given: ошибка валидации => isTransient=false => без ретрая сразу DLT
         List<ConsumerRecord<String, Device>> batch = List.of(record("dev-10"), record("dev-11"));
+
         when(deviceService.save(anyList(), eq(metrics)))
                 .thenReturn(Mono.error(new IllegalArgumentException("bad payload")));
 
-        // чтобы .send(...) успешно завершался
-        when(kafkaTemplate.send(any(), any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(kafkaTemplate.send(Mockito.<ProducerRecord<String, Device>>any()))
+                .thenAnswer(inv -> {
+                    ProducerRecord<String, Device> pr = inv.getArgument(0);
+                    return completedSendFor(pr);
+                });
 
-        // when
         listener.listen(batch, ack);
 
-        // then
-        await().atMost(3, SECONDS).untilAsserted(() -> {
-            // ack сделан
+        // Капторим именно ProducerRecord, не RecordMetadata
+        ArgumentCaptor<ProducerRecord<String, Device>> prCaptor =
+                ArgumentCaptor.forClass((Class) ProducerRecord.class);
+
+        await().atMost(5, SECONDS).untilAsserted(() -> {
+            // ack был вызван (после отправки в DLT)
             verify(ack, times(1)).acknowledge();
-            // оба сообщения отправлены в DLT
-            verify(kafkaTemplate, times(2)).send(argThat(pr -> {
-                assertThat(pr.topic()).isEqualTo("devices.dlt");
-                assertThat(pr.value()).isNotNull();
-                // оригинальные заголовки должны сохраниться + диагностические добавлены
-                assertThat(pr.headers().lastHeader("kafka_dlt-exception-fqcn")).isNotNull();
-                assertThat(pr.headers().lastHeader("kafka_dlt-exception-message")).isNotNull();
-                assertThat(pr.headers().lastHeader("kafka_dlt-original-topic")).isNotNull();
-                assertThat(pr.headers().lastHeader("kafka_dlt-original-partition")).isNotNull();
-                assertThat(pr.headers().lastHeader("kafka_dlt-original-offset")).isNotNull();
-                assertThat(pr.headers().lastHeader("kafka_dlt-original-timestamp")).isNotNull();
-                // проверим что один из наших пользовательских заголовков перенесён
-                assertThat(pr.headers().lastHeader("x-correlation-id")).isNotNull();
-                return true;
-            }));
-            // метрика ошибки с кодом VALIDATION хотя бы один раз инкрементирована
-            verify(metrics, atLeastOnce()).incError(anyString(), eq("VALIDATION"));
+            // отправили оба сообщения
+            verify(kafkaTemplate, times(2)).send(prCaptor.capture());
         });
+
+        List<ProducerRecord<String, Device>> sent = prCaptor.getAllValues();
+        assertThat(sent).hasSize(2);
+        for (ProducerRecord<String, Device> pr : sent) {
+            assertThat(pr.topic()).isEqualTo("device-topic.dlt");
+            assertThat(pr.value()).isNotNull();
+            Headers h = pr.headers();
+            assertThat(h.lastHeader("kafka_dlt-exception-fqcn")).isNotNull();
+            assertThat(h.lastHeader("kafka_dlt-exception-message")).isNotNull();
+            assertThat(h.lastHeader("kafka_dlt-original-topic")).isNotNull();
+            assertThat(h.lastHeader("kafka_dlt-original-partition")).isNotNull();
+            assertThat(h.lastHeader("kafka_dlt-original-offset")).isNotNull();
+            assertThat(h.lastHeader("kafka_dlt-original-timestamp")).isNotNull();
+            // перенос пользовательского заголовка
+            assertThat(h.lastHeader("x-correlation-id")).isNotNull();
+        }
+
+        verify(metrics, atLeastOnce()).incError(anyString(), eq("VALIDATION"));
     }
 
 
+    private static CompletableFuture<SendResult<String, Device>> completedSendFor(
+            ProducerRecord<String, Device> pr
+    ) {
+        int part = pr.partition() == null ? 0 : pr.partition();
+        RecordMetadata md = new RecordMetadata(
+                new TopicPartition(pr.topic(), part),
+                0L, 0L, System.currentTimeMillis(),
+                0L, 0, 0
+        );
+        // ВАЖНО: сначала ProducerRecord, потом RecordMetadata
+        return CompletableFuture.completedFuture(new SendResult<>(pr, md));
+    }
 
     private ConsumerRecord<String, Device> record(String deviceId) {
         Device d = new Device();

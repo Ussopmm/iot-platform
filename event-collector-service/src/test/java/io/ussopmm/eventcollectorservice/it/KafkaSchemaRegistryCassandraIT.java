@@ -69,6 +69,7 @@ public class KafkaSchemaRegistryCassandraIT {
     static {
         Startables.deepStart(Stream.of(KAFKA, SCHEMA_REGISTRY, CASSANDRA)).join();
     }
+
     @DynamicPropertySource
     static void registerProps(DynamicPropertyRegistry r) {
 

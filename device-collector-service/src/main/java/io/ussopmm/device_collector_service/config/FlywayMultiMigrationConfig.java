@@ -3,9 +3,11 @@ package io.ussopmm.device_collector_service.config;
 import jakarta.annotation.PostConstruct;
 import org.flywaydb.core.Flyway;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 
 
 @Configuration
+@Profile("!test & !kafka-it")
 public class FlywayMultiMigrationConfig {
 
     @PostConstruct

@@ -1,6 +1,7 @@
 package io.ussopmm.device_collector_service.service;
 
 import com.nashkod.avro.Device;
+import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.ussopmm.device_collector_service.entity.DeviceEntity;
 import io.ussopmm.device_collector_service.helpers.ShardMetrics;
 import io.ussopmm.device_collector_service.repository.DeviceRepositoryCustom;
@@ -23,6 +24,9 @@ public class DeviceService {
     private final DeviceRepositoryCustom deviceRepository;
 
     public Mono<Long> save(List<ConsumerRecord<String, Device>> devices, ShardMetrics metrics) {
+        var tracer = GlobalOpenTelemetry.getTracer(DeviceService.class.getSimpleName());
+        var saveSpan = tracer.spanBuilder("save-devices").startSpan();
+
         List<DeviceEntity> entities = devices.stream()
                 .map(r -> DeviceEntity.builder()
                         .deviceId(r.value().getDeviceId())
@@ -38,9 +42,17 @@ public class DeviceService {
             batches.add(entities.subList(i, Math.min(i + batchSize, entities.size())));
         }
 
-        return Flux.fromIterable(batches)
-                .publishOn(Schedulers.boundedElastic())
-                .map(batch -> deviceRepository.upsertBatch(batch, metrics))
-                .reduce(0L, Long::sum);
+        return Mono.defer(() -> {
+            return Flux.fromIterable(batches)
+                    .flatMap(batch -> Mono.defer(() -> {
+                        var b = tracer.spanBuilder("db.upsert.batch").startSpan();
+                        try (var _ = b.makeCurrent()) {
+                            return Mono.fromCallable(() -> deviceRepository.upsertBatch(batch, metrics))
+                                    .doFinally(__ -> b.end());
+                        }
+                    }), 4)
+                    .reduce(0L, Long::sum)
+                    .doFinally(__ -> saveSpan.end());
+        });
     }
 }

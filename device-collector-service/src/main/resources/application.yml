@@ -40,7 +40,7 @@ spring:
   kafka:
     consumer:
       group-id: ${DEVICE_COLLECTOR_KAFKA_CONSUMER_GROUP_ID:device-collector-group}
-      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9093}
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
       max-poll-records: 50
@@ -87,3 +87,9 @@ logging:
   level:
     org.flywaydb: DEBUG
     org.springframework.jdbc: DEBUG
+
+app:
+  retry:
+    maxAttempts: 5
+    minBackoffS: 2
+    maxBackoffS: 30

@@ -1,9 +1,9 @@
 package io.ussopmm.device_collector_service.listener;
 
 import com.nashkod.avro.Device;
+import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
-import io.opentelemetry.instrumentation.annotations.WithSpan;
 import io.ussopmm.device_collector_service.helpers.ShardMetrics;
 import io.ussopmm.device_collector_service.service.DeviceService;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +13,8 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.shardingsphere.infra.exception.postgresql.exception.PostgreSQLException;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.dao.TransientDataAccessResourceException;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -31,6 +33,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "app.kafka.enabled", havingValue = "true", matchIfMissing = true)
 public class DeviceListener {
 
     @Value("${spring.kafka.dlt-topic.name}")
@@ -39,7 +42,10 @@ public class DeviceListener {
     private final KafkaTemplate<String, Device> kafkaTemplate;
     private final ShardMetrics metrics;
 
-    @WithSpan("deviceListener.listen")
+    @Value("${app.retry.maxAttempts:5}") private int maxAttempts;
+    @Value("${app.retry.minBackoffS:2000}") private long minBackoffS;
+    @Value("${app.retry.maxBackoffS:32000}") private long maxBackoffS;
+
     @KafkaListener(
             topics = "${spring.kafka.topic.name}",
             groupId = "${spring.kafka.consumer.group-id}",
@@ -48,37 +54,43 @@ public class DeviceListener {
     )
     public void listen(List<ConsumerRecord<String, Device>> devices, Acknowledgment ack) {
         log.info("Devices received");
-        deviceService.save(devices, metrics)
-                        .retryWhen(
-                            Retry.backoff(5, Duration.ofSeconds(2))
-                                    .maxBackoff(Duration.ofSeconds(32))
+        var tracer = GlobalOpenTelemetry.getTracer(DeviceListener.class.getName());
+        var span = tracer.spanBuilder("deviceListener.listen").startSpan();
+        try (var _1 = span.makeCurrent()) {
+            deviceService.save(devices, metrics)
+                    .retryWhen(
+                            Retry.backoff(maxAttempts, Duration.ofSeconds(minBackoffS))
+                                    .maxBackoff(Duration.ofSeconds(maxBackoffS))
                                     .jitter(0.5)
-                                    .filter(this::isTransient)
                                     .doBeforeRetry(sig -> {
                                         log.warn("Retry #{}, cause={}",
                                                 sig.totalRetries() + 1,
                                                 sig.failure().toString());
                                     })
-                        )
-                        .then(Mono.fromRunnable(ack::acknowledge))
-                        .doOnSuccess(v -> {
-                            log.info("Devices [amount of {}] saved & acked successfully", v);
-                        })
-                        .onErrorResume(ex -> {
-                            var span = Span.current();
-                            span.recordException(ex);
-                            span.setStatus(StatusCode.ERROR, ex.getMessage() == null ? "" : ex.getMessage());
-                            return sendBatchToDLT(devices, ex)
-                                                .then(Mono.fromRunnable(ack::acknowledge));})
-                        .doOnError(ex -> log.error("Save failed; will send to DLT", ex))
-                        .subscribe();
+                    )
+                    .doOnSuccess(v -> {
+                        span.setAttribute("saved.count", v);
+                        log.info("Devices [amount of {}] saved & acked successfully", v);
+                    })
+                    .then(Mono.fromRunnable(ack::acknowledge))
+                    .doOnError(ex -> {
+                        span.recordException(ex);
+                        span.setStatus(StatusCode.ERROR, ex.getMessage() == null ? "" : ex.getMessage());
+                        log.error("Save failed; will send to DLT", ex);
+                    })
+                    .onErrorResume(ex -> sendBatchToDLT(devices, ex)
+                                .then(Mono.fromRunnable(ack::acknowledge)))
+                    .doFinally(s -> span.end())
+                    .subscribe();
+        }
     }
 
 
     private Mono<Void> sendBatchToDLT(List<ConsumerRecord<String, Device>> records, Throwable ex) {
         return Flux.fromIterable(records)
                 .flatMap(rec -> {
-                    int shardIdx = Math.floorMod(rec.value().getDeviceId().hashCode(), 2);
+                    String devId = rec.value().getDeviceId() != null ? rec.value().getDeviceId() : null;
+                    int shardIdx = devId == null ? -1 : Math.floorMod(devId.hashCode(), 2);
                     try (var _1 = MDC.putCloseable("topic", rec.topic());
                          var _2 = MDC.putCloseable("partition", String.valueOf(rec.partition()));
                          var _3 = MDC.putCloseable("offset", String.valueOf(rec.offset()));
@@ -90,7 +102,7 @@ public class DeviceListener {
                         ProducerRecord<String, Device> dlt =
                                 new ProducerRecord<>(dltTopic, rec.partition(), rec.key(), rec.value());
                         spanCompletion(rec, ex, shardIdx);
-                        metrics.incError(Integer.toString(shardIdx), causeCode(ex));
+                        metrics.incError(shardIdx == -1 ? "unknown" : Integer.toString(shardIdx), causeCode(ex));
                         // переносим все оригинальные заголовки
                         rec.headers().forEach(h -> dlt.headers().add(h));
                         // диагностические заголовки
@@ -149,8 +161,5 @@ public class DeviceListener {
     private String safeMsg(Throwable ex) {
         String m = ex.getMessage();
         return m == null ? "" : (m.length() > 1000 ? m.substring(0, 1000) : m);
-    }
-    private boolean isTransient(Throwable t) {
-        return !(t instanceof IllegalArgumentException);
     }
 }

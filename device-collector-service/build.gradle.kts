@@ -94,8 +94,11 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("io.projectreactor:reactor-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-//    implementation("org.springframework.boot:spring-boot-starter-webflux-test")
-
+    testImplementation("org.testcontainers:testcontainers:${versions["testContainersVersion"]}")
+    testImplementation("org.testcontainers:postgresql:${versions["testContainersVersion"]}")
+    testImplementation("org.testcontainers:junit-jupiter:${versions["testContainersVersion"]}")
+    testImplementation("org.testcontainers:kafka:${versions["testContainersVersion"]}")
+    testImplementation("org.springframework.kafka:spring-kafka-test:${versions["springKafkaTestVersion"]}")
     // NEXUS DEPS
     implementation("io.ussopmm:avro-schemas:${versions["avroSchemasVersion"]}")
 

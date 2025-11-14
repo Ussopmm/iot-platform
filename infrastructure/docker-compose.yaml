@@ -5,15 +5,15 @@ services:
     image: postgres:17
     container_name: device_db_0
     environment:
-      POSTGRES_USER: ${POSTGRES_USERNAME}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${SHARD_DB_USERNAME}
+      POSTGRES_PASSWORD: ${SHARD_DB_PASSWORD}
+      POSTGRES_DB: ${SHARD_DB}
     ports:
       - "5434:5432"
     volumes:
       - pg_data0:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USERNAME} -d ${POSTGRES_DB}" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${SHARD_DB_USERNAME} -d ${SHARD_DB}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -24,15 +24,15 @@ services:
     image: postgres:17
     container_name: device_db_1
     environment:
-      POSTGRES_USER: ${POSTGRES_USERNAME}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${SHARD_DB_USERNAME}
+      POSTGRES_PASSWORD: ${SHARD_DB_PASSWORD}
+      POSTGRES_DB: ${SHARD_DB}
     ports:
       - "5435:5432"
     volumes:
       - pg_data1:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USERNAME} -d ${POSTGRES_DB}" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${SHARD_DB_USERNAME} -d ${SHARD_DB}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -43,15 +43,15 @@ services:
     image: postgres:17
     container_name: device_db_2
     environment:
-      POSTGRES_USER: ${POSTGRES_USERNAME}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${SHARD_DB_USERNAME}
+      POSTGRES_PASSWORD: ${SHARD_DB_PASSWORD}
+      POSTGRES_DB: ${SHARD_DB}
     ports:
       - "5436:5432"
     volumes:
       - pg_data2:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USERNAME} -d ${POSTGRES_DB}" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${SHARD_DB_USERNAME} -d ${SHARD_DB}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -62,15 +62,15 @@ services:
     image: postgres:17
     container_name: device_db_3
     environment:
-      POSTGRES_USER: ${POSTGRES_USERNAME}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${SHARD_DB_USERNAME}
+      POSTGRES_PASSWORD: ${SHARD_DB_PASSWORD}
+      POSTGRES_DB: ${SHARD_DB}
     ports:
       - "5437:5432"
     volumes:
       - pg_data3:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USERNAME} -d ${POSTGRES_DB}" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${SHARD_DB_USERNAME} -d ${SHARD_DB}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -84,8 +84,8 @@ services:
       - "9187:9187"
     environment:
       DATA_SOURCE_URI: "device_db_0:5432/${POSTGRES_DB}?sslmode=disable"
-      DATA_SOURCE_USER: ${POSTGRES_USERNAME}
-      DATA_SOURCE_PASS: ${POSTGRES_PASSWORD}
+      DATA_SOURCE_USER: ${SHARD_DB_USERNAME}
+      DATA_SOURCE_PASS: ${SHARD_DB_PASSWORD}
     depends_on:
       device_db_0:
         condition: service_healthy
@@ -104,8 +104,8 @@ services:
       - "9188:9187"
     environment:
       DATA_SOURCE_URI: "device_db_1:5432/${POSTGRES_DB}?sslmode=disable"
-      DATA_SOURCE_USER: ${POSTGRES_USERNAME}
-      DATA_SOURCE_PASS: ${POSTGRES_PASSWORD}
+      DATA_SOURCE_USER: ${SHARD_DB_USERNAME}
+      DATA_SOURCE_PASS: ${SHARD_DB_PASSWORD}
     depends_on:
       device_db_1:
         condition: service_healthy
@@ -124,8 +124,8 @@ services:
       - "9189:9187"
     environment:
       DATA_SOURCE_URI: "device_db_2:5432/${POSTGRES_DB}?sslmode=disable"
-      DATA_SOURCE_USER: ${POSTGRES_USERNAME}
-      DATA_SOURCE_PASS: ${POSTGRES_PASSWORD}
+      DATA_SOURCE_USER: ${SHARD_DB_USERNAME}
+      DATA_SOURCE_PASS: ${SHARD_DB_PASSWORD}
     depends_on:
       device_db_2:
         condition: service_healthy
@@ -144,8 +144,8 @@ services:
       - "9190:9187"
     environment:
       DATA_SOURCE_URI: "device_db_3:5432/${POSTGRES_DB}?sslmode=disable"
-      DATA_SOURCE_USER: ${POSTGRES_USERNAME}
-      DATA_SOURCE_PASS: ${POSTGRES_PASSWORD}
+      DATA_SOURCE_USER: ${SHARD_DB_USERNAME}
+      DATA_SOURCE_PASS: ${SHARD_DB_PASSWORD}
     depends_on:
       device_db_3:
         condition: service_healthy
@@ -639,51 +639,51 @@ services:
   #      nexus:
   #        condition: service_healthy
 
-  device-collector-service:
-    build:
-      context: ../device-collector-service/
-      dockerfile: Dockerfile
-    container_name: device-collector-service
-    ports:
-      - "9098:9098"
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
-      SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL}
-      ALLOY_URL: ${ALLOY_URL}
-      NEXUS_URL: ${NEXUS_URL}
-      NEXUS_USERNAME: ${NEXUS_USERNAME}
-      NEXUS_PASSWORD: ${NEXUS_PASSWORD}
-      KAFKA_POLL_TIMEOUT: ${KAFKA_POLL_TIMEOUT}
-      KAFKA_BATCH_LISTENER_ENABLED: ${KAFKA_BATCH_LISTENER_ENABLED}
-      KAFKA_CONCURRENCY: ${KAFKA_CONCURRENCY}
-      SLOW_SQL_QUERY_INDICATOR_MS: ${SLOW_SQL_QUERY_INDICATOR_MS}
-      DEVICE_COLLECTOR_KAFKA_CONSUMER_GROUP_ID: ${DEVICE_COLLECTOR_KAFKA_CONSUMER_GROUP_ID}
-      HIGHLIGHT_SQL: ${HIGHLIGHT_SQL}
-      FORMAT_SQL: ${FORMAT_SQL}
-      SHOW_SQL: ${SHOW_SQL}
-    networks:
-      - iot-platform-net
-    depends_on:
-      kafka:
-        condition: service_healthy
-      schema-registry:
-        condition: service_healthy
-      nexus:
-        condition: service_healthy
-      device_db_0:
-        condition: service_healthy
-      device_db_1:
-        condition: service_healthy
-      device_db_2:
-        condition: service_healthy
-      device_db_3:
-        condition: service_healthy
-    healthcheck:
-      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9098/actuator/health" ]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+#  device-collector-service:
+#    build:
+#      context: ../device-collector-service/
+#      dockerfile: Dockerfile
+#    container_name: device-collector-service
+#    ports:
+#      - "9098:9098"
+#    environment:
+#      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+#      SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL}
+#      ALLOY_URL: ${ALLOY_URL}
+#      NEXUS_URL: ${NEXUS_URL}
+#      NEXUS_USERNAME: ${NEXUS_USERNAME}
+#      NEXUS_PASSWORD: ${NEXUS_PASSWORD}
+#      KAFKA_POLL_TIMEOUT: ${KAFKA_POLL_TIMEOUT}
+#      KAFKA_BATCH_LISTENER_ENABLED: ${KAFKA_BATCH_LISTENER_ENABLED}
+#      KAFKA_CONCURRENCY: ${KAFKA_CONCURRENCY}
+#      SLOW_SQL_QUERY_INDICATOR_MS: ${SLOW_SQL_QUERY_INDICATOR_MS}
+#      DEVICE_COLLECTOR_KAFKA_CONSUMER_GROUP_ID: ${DEVICE_COLLECTOR_KAFKA_CONSUMER_GROUP_ID}
+#      HIGHLIGHT_SQL: ${HIGHLIGHT_SQL}
+#      FORMAT_SQL: ${FORMAT_SQL}
+#      SHOW_SQL: ${SHOW_SQL}
+#    networks:
+#      - iot-platform-net
+#    depends_on:
+#      kafka:
+#        condition: service_healthy
+#      schema-registry:
+#        condition: service_healthy
+#      nexus:
+#        condition: service_healthy
+#      device_db_0:
+#        condition: service_healthy
+#      device_db_1:
+#        condition: service_healthy
+#      device_db_2:
+#        condition: service_healthy
+#      device_db_3:
+#        condition: service_healthy
+#    healthcheck:
+#      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9098/actuator/health" ]
+#      interval: 15s
+#      timeout: 5s
+#      retries: 5
+#      start_period: 30s
 
 volumes:
   minio_data:

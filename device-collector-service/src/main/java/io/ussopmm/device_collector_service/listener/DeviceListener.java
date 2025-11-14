@@ -53,7 +53,7 @@ public class DeviceListener {
             containerFactory = "kafkaConsumerContainerFactory"
     )
     public void listen(List<ConsumerRecord<String, Device>> devices, Acknowledgment ack) {
-        log.info("Devices received");
+        log.info("Devices received: {} messages", devices.size());
         var tracer = GlobalOpenTelemetry.getTracer(DeviceListener.class.getName());
         var span = tracer.spanBuilder("deviceListener.listen").startSpan();
         try (var _1 = span.makeCurrent()) {
@@ -80,8 +80,14 @@ public class DeviceListener {
                     })
                     .onErrorResume(ex -> sendBatchToDLT(devices, ex)
                                 .then(Mono.fromRunnable(ack::acknowledge)))
-                    .doFinally(s -> span.end())
+                    .doFinally(s -> {
+                        log.info("Listener processing completed with signal: {}", s);
+                        span.end();
+                    })
                     .subscribe();
+        } catch (Exception e) {
+            log.error("Fatal error in listener", e);
+            throw e;
         }
     }
 

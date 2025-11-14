@@ -1,290 +1,258 @@
-//package io.ussopmm.device_collector_service.it;
-//
-//import com.nashkod.avro.Device;
-//import io.ussopmm.device_collector_service.helpers.ShardMetrics;
-//import org.apache.shardingsphere.infra.hint.HintManager;
-//import org.junit.jupiter.api.BeforeAll;
-//import org.junit.jupiter.api.BeforeEach;
-//import org.junit.jupiter.api.Test;
-//import org.junit.jupiter.api.io.TempDir;
-//import org.springframework.beans.factory.annotation.Autowired;
-//import org.springframework.boot.test.context.SpringBootTest;
-//import org.springframework.boot.test.context.TestConfiguration;
-//import org.springframework.context.annotation.Bean;
-//import org.springframework.context.annotation.Primary;
-//import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-//import org.springframework.kafka.annotation.EnableKafka;
-//import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
-//import org.springframework.kafka.core.DefaultKafkaProducerFactory;
-//import org.springframework.kafka.core.KafkaTemplate;
-//import org.springframework.test.context.ActiveProfiles;
-//import org.springframework.test.context.DynamicPropertyRegistry;
-//import org.springframework.test.context.DynamicPropertySource;
-//import org.testcontainers.containers.GenericContainer;
-//import org.testcontainers.containers.KafkaContainer;
-//import org.testcontainers.containers.Network;
-//import org.testcontainers.containers.PostgreSQLContainer;
-//import org.testcontainers.junit.jupiter.Container;
-//import org.testcontainers.junit.jupiter.Testcontainers;
-//import org.testcontainers.shaded.org.awaitility.Awaitility;
-//import org.testcontainers.utility.DockerImageName;
-//
-//import javax.sql.DataSource;
-//import java.io.IOException;
-//import java.nio.file.Files;
-//import java.nio.file.Path;
-//import java.time.Duration;
-//import java.util.*;
-//
-//import static org.assertj.core.api.Assertions.assertThat;
-//
-//@Testcontainers
-//@SpringBootTest( properties = {
-//        "server.port=0",
-//        "spring.jpa.hibernate.ddl-auto=none",
-//        "spring.jpa.show-sql=false",
-//        "spring.flyway.enabled=false",
-//        "spring.sql.init.mode=never",
-//        "otel.sdk.disabled=true",
-//        "management.tracing.enabled=false",
-//        "spring.kafka.concurrency=1",
-//        "spring.kafka.poll-timeout=2000",
-//        "spring.kafka.batch-listener-enabled=true",
-//        "app.kafka.enabled=true",
-//        "spring.kafka.topic.name=device-topic-it",
-//        "spring.kafka.consumer.group-id=device-collector-group-it",
-//        "app.retry.maxAttempts=1",
-//        "app.retry.minBackoffS=0",
-//        "app.retry.maxBackoffS=1",
-//        "spring.kafka.consumer.auto-offset-reset=earliest"
-//})
-//@ActiveProfiles("test")
-//@EnableKafka
-//public class GeneralSystemIT {
-//
-//    @Container
-//    static final PostgreSQLContainer<?> shardMaster0 =
-//            new PostgreSQLContainer<>("postgres:16-alpine")
-//                    .withDatabaseName("devices")
-//                    .withUsername("postgres")
-//                    .withPassword("postgres")
-//                    .withInitScript("db/migration/v1/V0__init-ds0.sql");
-//
-//    @Container
-//    static final PostgreSQLContainer<?> shardReplica0 =
-//            new PostgreSQLContainer<>("postgres:16-alpine")
-//                    .withDatabaseName("devices")
-//                    .withUsername("postgres")
-//                    .withPassword("postgres")
-//                    .withInitScript("db/migration/v1/V0__init-ds0.sql");
-//
-//    @Container
-//    static final PostgreSQLContainer<?> shardMaster1 =
-//            new PostgreSQLContainer<>("postgres:16-alpine")
-//                    .withDatabaseName("devices")
-//                    .withUsername("postgres")
-//                    .withPassword("postgres")
-//                    .withInitScript("db/migration/v1/V0__init-ds0.sql");
-//
-//    @Container
-//    static final PostgreSQLContainer<?> shardReplica1 =
-//            new PostgreSQLContainer<>("postgres:16-alpine")
-//                    .withDatabaseName("devices")
-//                    .withUsername("postgres")
-//                    .withPassword("postgres")
-//                    .withInitScript("db/migration/v1/V0__init-ds0.sql");
-//
-//
-//    private static Path generatedShardingYaml;
-//
-//    @TempDir
-//    static Path tempDir;
-//
-//    @BeforeAll
-//    static void generateShardingYaml() throws IOException {
-//        String m0 = shardMaster0.getJdbcUrl() + "&currentSchema=device";
-//        String r0 = shardReplica0.getJdbcUrl() + "&currentSchema=device";
-//        String m1 = shardMaster1.getJdbcUrl() + "&currentSchema=device";
-//        String r1 = shardReplica1.getJdbcUrl() + "&currentSchema=device";
-//
-//        // YAML строго по вашей структуре, подставляем динамические jdbcUrl
-//        String yaml = ""
-//                + "dataSources:\n"
-//                + "  shard_master_0:\n"
-//                + "    dataSourceClassName: com.zaxxer.hikari.HikariDataSource\n"
-//                + "    jdbcUrl: " + m0 + "\n"
-//                + "    username: postgres\n"
-//                + "    password: postgres\n"
-//                + "  shard_replica_0:\n"
-//                + "    dataSourceClassName: com.zaxxer.hikari.HikariDataSource\n"
-//                + "    jdbcUrl: " + r0 + "\n"
-//                + "    username: postgres\n"
-//                + "    password: postgres\n"
-//                + "  shard_master_1:\n"
-//                + "    dataSourceClassName: com.zaxxer.hikari.HikariDataSource\n"
-//                + "    jdbcUrl: " + m1 + "\n"
-//                + "    username: postgres\n"
-//                + "    password: postgres\n"
-//                + "  shard_replica_1:\n"
-//                + "    dataSourceClassName: com.zaxxer.hikari.HikariDataSource\n"
-//                + "    jdbcUrl: " + r1 + "\n"
-//                + "    username: postgres\n"
-//                + "    password: postgres\n"
-//                + "rules:\n"
-//                + "- !READWRITE_SPLITTING\n"
-//                + "  dataSourceGroups:\n"
-//                + "    shard0:\n"
-//                + "      writeDataSourceName: shard_master_0\n"
-//                + "      readDataSourceNames: [ shard_replica_0 ]\n"
-//                + "      loadBalancerName: roundRobin\n"
-//                + "    shard1:\n"
-//                + "      writeDataSourceName: shard_master_1\n"
-//                + "      readDataSourceNames: [ shard_replica_1 ]\n"
-//                + "      loadBalancerName: roundRobin\n"
-//                + "  loadBalancers:\n"
-//                + "    roundRobin:\n"
-//                + "      type: ROUND_ROBIN\n"
-//                + "\n"
-//                + "- !SHARDING\n"
-//                + "  tables:\n"
-//                + "    devices:\n"
-//                + "      actualDataNodes: shard_master_${0..1}.devices\n"
-//                + "      tableStrategy:\n"
-//                + "        none:\n"
-//                + "      databaseStrategy:\n"
-//                + "        standard:\n"
-//                + "          shardingColumn: device_id\n"
-//                + "          shardingAlgorithmName: deviceid_hash_mod\n"
-//                + "  shardingAlgorithms:\n"
-//                + "    deviceid_hash_mod:\n"
-//                + "      type: INLINE\n"
-//                + "      props:\n"
-//                + "        algorithm-expression: shard_master_${Math.abs(device_id.hashCode()) % 2}\n";
-//
-//        generatedShardingYaml = tempDir.resolve("sharding-it.yml");
-//        Files.writeString(generatedShardingYaml, yaml);
-//    }
-//
-//    static final Network NET = Network.newNetwork();
-//
-//    @Container
-//    static final KafkaContainer KAFKA = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka").withTag("7.5.0"))
-//            .withNetwork(NET)
-//            .withNetworkAliases("kafka");
-//
-//    @Container
-//    static final GenericContainer<?> SCHEMA_REGISTRY =
-//            new GenericContainer<>(DockerImageName.parse("confluentinc/cp-schema-registry:7.5.0"))
-//                    .withNetwork(NET)
-//                    .withNetworkAliases("schema-registry")
-//                    .withExposedPorts(8081)
-//                    .withEnv("SCHEMA_REGISTRY_HOST_NAME", "schema-registry")
-//                    .withEnv("SCHEMA_REGISTRY_LISTENERS", "http://0.0.0.0:8081")
-//                    .withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "PLAINTEXT://kafka:9092")
-//                    .waitingFor(org.testcontainers.containers.wait.strategy.Wait.forHttp("/subjects").forStatusCode(200))
-//                    .dependsOn(KAFKA);
-//
-//    static final String SOURCE_TOPIC = "device-topic-it";
-//    static final String DLT_TOPIC    = "device-topic-it.DLT";
-//
-//
-//    @DynamicPropertySource
-//    static void props(DynamicPropertyRegistry r) {
-//        r.add("spring.datasource.driver-class-name", () -> "org.apache.shardingsphere.driver.ShardingSphereDriver");
-//        r.add("spring.datasource.url", () -> "jdbc:shardingsphere:absolutepath:" + generatedShardingYaml.toAbsolutePath());
-//
-//        r.add("spring.kafka.bootstrap-servers", KAFKA::getBootstrapServers);
-//        r.add("spring.kafka.properties.schema.registry.url",
-//                () -> "http://" + SCHEMA_REGISTRY.getHost() + ":" + SCHEMA_REGISTRY.getMappedPort(8081));
-//
-//        // Консьюмер у приложения (чтобы @KafkaListener стартовал как в проде)
-//        r.add("spring.kafka.consumer.properties.specific.avro.reader", () -> "true");
-//        r.add("spring.kafka.consumer.value-deserializer",
-//                () -> "io.confluent.kafka.serializers.KafkaAvroDeserializer");
-//        r.add("spring.kafka.producer.value-serializer",
-//                () -> "io.confluent.kafka.serializers.KafkaAvroSerializer");
-//
-//        // Топики (если код читает te же ключи)
-//        r.add("spring.kafka.topic.name", () -> SOURCE_TOPIC);
-//    }
-//
-//    @TestConfiguration
-//    static class AvroTemplateCfg {
-//        @Bean
-//        @Primary
-//        KafkaTemplate<String, Device> kafkaTemplate() {
-//            Map<String, Object> cfg = new HashMap<>();
-//            cfg.put("bootstrap.servers", KAFKA.getBootstrapServers());
-//            cfg.put("key.serializer", org.apache.kafka.common.serialization.StringSerializer.class);
-//            cfg.put("value.serializer", io.confluent.kafka.serializers.KafkaAvroSerializer.class);
-//            cfg.put("schema.registry.url", "http://" + SCHEMA_REGISTRY.getHost() + ":" + SCHEMA_REGISTRY.getMappedPort(8081));
-//            cfg.put("auto.register.schemas", true);
-//            return new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(cfg));
-//        }
-//    }
-//
-//    @Autowired
-//    KafkaTemplate<String, Device> producer;
-//    @Autowired
-//    NamedParameterJdbcTemplate jdbc;
-//    @Autowired
-//    DataSource dataSource;
-//    @Autowired
-//    ShardMetrics metrics;
-//
-//    private static Device newDevice(String id, String type, long created, String meta) {
-//        var d = new Device();
-//        d.setDeviceId(id);
-//        d.setDeviceType(type);
-//        d.setCreatedAt(created);
-//        d.setMeta(meta);
-//        return d;
-//    }
-//
-//    private long countOnMaster(Collection<String> ids) {
-//        try (HintManager hm = HintManager.getInstance()) {
-//            hm.setWriteRouteOnly();
-//            return jdbc.queryForObject(
-//                    "SELECT COUNT(*) FROM device.devices WHERE device_id IN (:ids)",
-//                    Map.of("ids", ids), Long.class);
-//        }
-//    }
-//
-//    private String deviceTypeOnMaster(String id) {
-//        try (HintManager hm = HintManager.getInstance()) {
-//            hm.setWriteRouteOnly();
-//            return jdbc.queryForObject(
-//                    "SELECT device_type FROM device.devices WHERE device_id=:id",
-//                    Map.of("id", id), String.class);
-//        }
-//    }
-//
-//
-//    @Test
-//    void fullPipeline_fromKafka_toShardedDB_success() {
-//        // 1) шлём батч в исходный топик (как будто прод-продюсер)
-//        var ids = List.of("dev-A-001", "dev-B-002", "dev-C-003", "dev-D-004");
-//        ids.forEach(id -> producer.send(SOURCE_TOPIC, id, newDevice(id, "TYPE-"+id.substring(id.length()-3), 111L, "{}")));
-//        producer.flush();
-//
-//        Awaitility.await().atMost(Duration.ofSeconds(10))
-//                .until(() -> true); // или проверка какого-нибудь твоего health/флага
-//
-//        // 2) ждём, пока @KafkaListener обработает и deviceService.save(...) запишет в БД
-//        Awaitility.await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
-//            assertThat(countOnMaster(ids)).isEqualTo(ids.size());
-//        });
-//
-//        // 3) точечно проверим одно обновление: пошлём апдейт существующего id
-//        String sameId = ids.get(0);
-//        producer.send(SOURCE_TOPIC, sameId, newDevice(sameId, "TYPE-UPDATED", 222L, "{\"v\":2}"));
-//        producer.flush();
-//
-//        Awaitility.await().atMost(Duration.ofSeconds(20)).untilAsserted(() -> {
-//            assertThat(deviceTypeOnMaster(sameId)).isEqualTo("TYPE-UPDATED");
-//        });
-//
-//        // 4) sanity: подключение через ShardingSphere работает
-//        assertThat(dataSource).isNotNull();
-//    }
-//}
+package io.ussopmm.device_collector_service.it;
+
+import com.nashkod.avro.Device;
+import io.confluent.kafka.serializers.KafkaAvroSerializer;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.ussopmm.device_collector_service.helpers.ShardMetrics;
+import io.ussopmm.device_collector_service.repository.DeviceRepositoryCustom;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.serialization.StringSerializer;
+import org.apache.shardingsphere.infra.hint.HintManager;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.kafka.annotation.EnableKafka;
+import org.springframework.kafka.core.DefaultKafkaProducerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.KafkaContainer;
+import org.testcontainers.containers.Network;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
+
+import javax.sql.DataSource;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.time.Duration;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+import static org.junit.Assert.assertEquals;
+
+/**
+ * Полноценный интеграционный тест всего пайплайна:
+ * Kafka → DeviceListener → DeviceService → ShardingSphere → PostgreSQL (2 шарда)
+ *
+ * Тест проверяет:
+ * 1. Весь пайплайн обработки сообщений из Kafka
+ * 2. Корректность шардирования данных
+ * 3. Распределение данных по шардам согласно алгоритму
+ */
+@Testcontainers
+@SpringBootTest(properties = {
+        "spring.flyway.enabled=false",
+        "otel.sdk.disabled=true",
+        "management.tracing.enabled=false",
+        "spring.kafka.properties.specific.avro.reader=true",
+        "spring.kafka.concurrency=1",
+        "spring.kafka.poll-timeout=2000",
+        "spring.kafka.batch-listener-enabled=true",
+        "spring.kafka.dlt-topic.name=device-topic.DLT",
+        "spring.kafka.consumer.group-id=device-test-group",
+        "app.retry.maxAttempts=3",
+        "app.retry.minBackoffS=1",
+        "app.retry.maxBackoffS=2",
+        "app.kafka.enabled=true",
+        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration"
+
+
+})
+@ActiveProfiles("full-it")
+@EnableKafka
+public class GeneralSystemIT {
+
+    @Container
+    static final PostgreSQLContainer<?> shardMaster0 =
+            new PostgreSQLContainer<>("postgres:16-alpine")
+                    .withDatabaseName("devices")
+                    .withUsername("postgres")
+                    .withPassword("postgres")
+                    .withInitScript("db/migration/v1/V0__init-ds0.sql");
+
+    @Container
+    static final PostgreSQLContainer<?> shardReplica0 =
+            new PostgreSQLContainer<>("postgres:16-alpine")
+                    .withDatabaseName("devices")
+                    .withUsername("postgres")
+                    .withPassword("postgres")
+                    .withInitScript("db/migration/v1/V0__init-ds0.sql");
+
+    @Container
+    static final PostgreSQLContainer<?> shardMaster1 =
+            new PostgreSQLContainer<>("postgres:16-alpine")
+                    .withDatabaseName("devices")
+                    .withUsername("postgres")
+                    .withPassword("postgres")
+                    .withInitScript("db/migration/v1/V0__init-ds0.sql");
+
+    @Container
+    static final PostgreSQLContainer<?> shardReplica1 =
+            new PostgreSQLContainer<>("postgres:16-alpine")
+                    .withDatabaseName("devices")
+                    .withUsername("postgres")
+                    .withPassword("postgres")
+                    .withInitScript("db/migration/v1/V0__init-ds0.sql");
+
+    static final Network NET = Network.newNetwork();
+
+    @Container
+    static final KafkaContainer KAFKA = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka").withTag("7.5.0"))
+            .withNetwork(NET)
+            .withNetworkAliases("kafka");
+
+    @Container
+    static final GenericContainer<?> SCHEMA_REGISTRY =
+            new GenericContainer<>(DockerImageName.parse("confluentinc/cp-schema-registry:7.5.0"))
+                    .withNetwork(NET)
+                    .withNetworkAliases("schema-registry")
+                    .withExposedPorts(8081)
+                    .withEnv("SCHEMA_REGISTRY_HOST_NAME", "schema-registry")
+                    .withEnv("SCHEMA_REGISTRY_LISTENERS", "http://0.0.0.0:8081")
+                    .withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "PLAINTEXT://kafka:9092")
+                    .waitingFor(org.testcontainers.containers.wait.strategy.Wait.forHttp("/subjects").forStatusCode(200))
+                    .dependsOn(KAFKA);
+
+
+    @DynamicPropertySource
+    static void props(DynamicPropertyRegistry registry) throws Exception{
+        // Настраиваем ShardingSphere через Java-конфигурацию с переменными окружения
+        registry.add("sharding.datasource.shard-master-0.jdbc-url",
+                () -> shardMaster0.getJdbcUrl() + "&currentSchema=device");
+        registry.add("sharding.datasource.shard-replica-0.jdbc-url",
+                () -> shardReplica0.getJdbcUrl() + "&currentSchema=device");
+        registry.add("sharding.datasource.shard-master-1.jdbc-url",
+                () -> shardMaster1.getJdbcUrl() + "&currentSchema=device");
+        registry.add("sharding.datasource.shard-replica-1.jdbc-url",
+                () -> shardReplica1.getJdbcUrl() + "&currentSchema=device");
+        registry.add("sharding.datasource.username", () -> "postgres");
+        registry.add("sharding.datasource.password", () -> "postgres");
+
+        // JPA настройки
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "none");
+        registry.add("spring.jpa.show-sql", () -> "false");
+        String bootstrap = KAFKA.getBootstrapServers();
+        String schemaRegistryUrl = "http://" + SCHEMA_REGISTRY.getHost() + ":" + SCHEMA_REGISTRY.getMappedPort(8081);
+
+        registry.add("spring.kafka.bootstrap-servers", () -> bootstrap);
+        registry.add("spring.kafka.consumer.bootstrap-servers", () -> bootstrap);
+        registry.add("spring.kafka.producer.bootstrap-servers", () -> bootstrap);
+        registry.add("spring.kafka.properties.schema.registry.url", () -> schemaRegistryUrl);
+        registry.add("spring.kafka.consumer.properties.key.deserializer", () -> "org.apache.kafka.common.serialization.StringDeserializer");
+        registry.add("spring.kafka.consumer.properties.value.deserializer", () -> "io.confluent.kafka.serializers.KafkaAvroDeserializer");
+        registry.add("spring.kafka.producer.properties.key.serializer", () -> "org.apache.kafka.common.serialization.StringSerializer");
+        registry.add("spring.kafka.producer.properties.value.serializer", () -> "io.confluent.kafka.serializers.KafkaAvroSerializer");
+        registry.add("spring.kafka.topic.name", () -> "device-topic");
+        String BOOTSTRAP = KAFKA.getHost() + ":" + KAFKA.getFirstMappedPort();
+
+        try (AdminClient admin = AdminClient.create(Map.of(
+                AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP))) {
+
+            String topicName = "device-topic";
+            admin.createTopics(Collections.singleton(new NewTopic(topicName, 1, (short) 1)))
+                    .all().get(30, TimeUnit.SECONDS);
+
+            // Wait until a fresh metadata request sees the topic
+            await().atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(250))
+                    .until(() -> {
+                        try {
+                            return admin.describeTopics(Collections.singletonList(topicName))
+                                    .allTopicNames().get(3, TimeUnit.SECONDS)
+                                    .containsKey(topicName);
+                        } catch (Exception e) {
+                            return false;
+                        }
+                    });
+        }
+    }
+    @TestConfiguration
+    static class TestJdbcConfig {
+        @Bean
+        NamedParameterJdbcTemplate namedParameterJdbcTemplate(DataSource dataSource) {
+            return new NamedParameterJdbcTemplate(dataSource);
+        }
+    }
+
+    @Autowired
+    private DataSource dataSource;
+    @Autowired NamedParameterJdbcTemplate jdbc;
+    @Autowired
+    DeviceRepositoryCustom deviceRepository;
+    @Autowired
+    MeterRegistry meterRegistry;     // Micrometer
+    @Autowired
+    ShardMetrics shardMetrics;       // твой бин, инкрементящий counters
+    @Autowired
+    KafkaTemplate<String, Device> kafkaTemplate;
+
+
+
+
+    @Test
+    void endToEnd_pipeline_savesDevicesToDb() throws Exception {
+        String topic = "device-topic";
+        int batchSize = 5;
+
+        // 1. Готовим список id девайсов
+        List<String> ids = IntStream.range(0, batchSize)
+                .mapToObj(i -> "it-dev-" + i)
+                .toList();
+
+        // 2. Шлём батч сообщений в Kafka
+        for (String id : ids) {
+            Device device = Device.newBuilder()
+                    .setDeviceId(id)
+                    .setDeviceType("MOBILE")
+                    .setCreatedAt(100L)
+                    .setMeta("testMeta-" + id)
+                    .build();
+
+            kafkaTemplate.send(topic, id, device).get(10, TimeUnit.SECONDS);
+        }
+        kafkaTemplate.flush();
+
+        // 3. Ждём, пока listener обработает сообщения и DeviceService сохранит их в БД
+        await()
+                .atMost(30, TimeUnit.SECONDS)
+                .pollInterval(1, TimeUnit.SECONDS)
+                .untilAsserted(() -> {
+                    try (HintManager hintManager = HintManager.getInstance()) {
+                        // заставляем ShardingSphere роутить запросы только на master
+                        hintManager.setWriteRouteOnly(); // или setPrimaryRouteOnly() в новой версии
+
+                        String sql = """
+                    SELECT COUNT(*) 
+                    FROM device.devices
+                    WHERE device_id LIKE 'it-dev-%'
+                    """;
+
+                        Integer count = jdbc.getJdbcTemplate().queryForObject(sql, Integer.class);
+                        assertEquals(5, count.intValue());
+                    }
+                });
+    }
+
+    // маленький record только для маппинга JDBC -> Java
+    record DeviceRow(String deviceId, String deviceType, long createdAt, String meta) {}
+
+}

@@ -7,18 +7,18 @@ import org.springframework.context.annotation.Profile;
 
 
 @Configuration
-@Profile("!test & !kafka-it")
+@Profile("!test & !kafka-it & !full-it")
 public class FlywayMultiMigrationConfig {
 
     @PostConstruct
     public void migrateAllShards() {
-        String username = System.getenv("POSTGRES_USERNAME");
-        String password = System.getenv("POSTGRES_PASSWORD");
+        String username = System.getenv("SHARD_DB_USERNAME");
+        String password = System.getenv("SHARD_DB_PASSWORD");
         String[] urls = {
-                System.getenv("POSTGRES_SHARD_URL_0"),
-                System.getenv("POSTGRES_SHARD_URL_1"),
-                System.getenv("POSTGRES_SHARD_URL_2"),
-                System.getenv("POSTGRES_SHARD_URL_3")
+                System.getenv("SHARD_MASTER_0_JDBC_URL"),
+                System.getenv("SHARD_REPLICA_0_JDBC_URL"),
+                System.getenv("SHARD_MASTER_1_JDBC_URL"),
+                System.getenv("SHARD_REPLICA_1_JDBC_URL")
         };
 
         for (String url : urls) {

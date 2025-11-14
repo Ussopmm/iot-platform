@@ -5,9 +5,7 @@ import io.ussopmm.device_collector_service.entity.DeviceEntity;
 import io.ussopmm.device_collector_service.helpers.ShardMetrics;
 import io.ussopmm.device_collector_service.repository.DeviceRepositoryCustom;
 import org.apache.shardingsphere.infra.hint.HintManager;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -21,9 +19,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import javax.sql.DataSource;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -49,7 +44,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
                 "org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration," +
                 "org.springframework.boot.autoconfigure.task.TaskExecutionAutoConfiguration",
 
-        // если есть ваши флаги
         "app.kafka.enabled=false",
         "kafka.enabled=false",
         "otel.sdk.disabled=true",
@@ -94,76 +88,6 @@ public class DeviceRepositoryIT {
                     .withInitScript("db/migration/v1/V0__init-ds0.sql");
 
 
-    private static Path generatedShardingYaml;
-
-    @TempDir
-    static Path tempDir;
-
-    @BeforeAll
-    static void generateShardingYaml() throws IOException {
-        String m0 = shardMaster0.getJdbcUrl() + "&currentSchema=device";
-        String r0 = shardReplica0.getJdbcUrl() + "&currentSchema=device";
-        String m1 = shardMaster1.getJdbcUrl() + "&currentSchema=device";
-        String r1 = shardReplica1.getJdbcUrl() + "&currentSchema=device";
-
-        // YAML строго по вашей структуре, подставляем динамические jdbcUrl
-        String yaml = ""
-                + "dataSources:\n"
-                + "  shard_master_0:\n"
-                + "    dataSourceClassName: com.zaxxer.hikari.HikariDataSource\n"
-                + "    jdbcUrl: " + m0 + "\n"
-                + "    username: postgres\n"
-                + "    password: postgres\n"
-                + "  shard_replica_0:\n"
-                + "    dataSourceClassName: com.zaxxer.hikari.HikariDataSource\n"
-                + "    jdbcUrl: " + r0 + "\n"
-                + "    username: postgres\n"
-                + "    password: postgres\n"
-                + "  shard_master_1:\n"
-                + "    dataSourceClassName: com.zaxxer.hikari.HikariDataSource\n"
-                + "    jdbcUrl: " + m1 + "\n"
-                + "    username: postgres\n"
-                + "    password: postgres\n"
-                + "  shard_replica_1:\n"
-                + "    dataSourceClassName: com.zaxxer.hikari.HikariDataSource\n"
-                + "    jdbcUrl: " + r1 + "\n"
-                + "    username: postgres\n"
-                + "    password: postgres\n"
-                + "rules:\n"
-                + "- !READWRITE_SPLITTING\n"
-                + "  dataSourceGroups:\n"
-                + "    shard0:\n"
-                + "      writeDataSourceName: shard_master_0\n"
-                + "      readDataSourceNames: [ shard_replica_0 ]\n"
-                + "      loadBalancerName: roundRobin\n"
-                + "    shard1:\n"
-                + "      writeDataSourceName: shard_master_1\n"
-                + "      readDataSourceNames: [ shard_replica_1 ]\n"
-                + "      loadBalancerName: roundRobin\n"
-                + "  loadBalancers:\n"
-                + "    roundRobin:\n"
-                + "      type: ROUND_ROBIN\n"
-                + "\n"
-                + "- !SHARDING\n"
-                + "  tables:\n"
-                + "    devices:\n"
-                + "      actualDataNodes: shard_master_${0..1}.devices\n"
-                + "      tableStrategy:\n"
-                + "        none:\n"
-                + "      databaseStrategy:\n"
-                + "        standard:\n"
-                + "          shardingColumn: device_id\n"
-                + "          shardingAlgorithmName: deviceid_hash_mod\n"
-                + "  shardingAlgorithms:\n"
-                + "    deviceid_hash_mod:\n"
-                + "      type: INLINE\n"
-                + "      props:\n"
-                + "        algorithm-expression: shard_master_${Math.abs(device_id.hashCode()) % 2}\n";
-
-        generatedShardingYaml = tempDir.resolve("sharding-it.yml");
-        Files.writeString(generatedShardingYaml, yaml);
-    }
-
 
     @Autowired
     private DataSource dataSource;
@@ -175,10 +99,19 @@ public class DeviceRepositoryIT {
 
     @DynamicPropertySource
     static void overrideProps(DynamicPropertyRegistry r) {
-        r.add("spring.datasource.driver-class-name",
-                () -> "org.apache.shardingsphere.driver.ShardingSphereDriver");
-        r.add("spring.datasource.url",
-                () -> "jdbc:shardingsphere:absolutepath:" + generatedShardingYaml.toAbsolutePath());
+        // Настраиваем ShardingSphere через Java-конфигурацию с переменными окружения
+        r.add("sharding.datasource.shard-master-0.jdbc-url",
+                () -> shardMaster0.getJdbcUrl() + "&currentSchema=device");
+        r.add("sharding.datasource.shard-replica-0.jdbc-url",
+                () -> shardReplica0.getJdbcUrl() + "&currentSchema=device");
+        r.add("sharding.datasource.shard-master-1.jdbc-url",
+                () -> shardMaster1.getJdbcUrl() + "&currentSchema=device");
+        r.add("sharding.datasource.shard-replica-1.jdbc-url",
+                () -> shardReplica1.getJdbcUrl() + "&currentSchema=device");
+        r.add("sharding.datasource.username", () -> "postgres");
+        r.add("sharding.datasource.password", () -> "postgres");
+
+        // JPA настройки
         r.add("spring.jpa.hibernate.ddl-auto", () -> "none");
         r.add("spring.jpa.show-sql", () -> "false");
     }

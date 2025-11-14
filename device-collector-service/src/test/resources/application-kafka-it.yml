@@ -1,32 +1,29 @@
-spring:
-  application:
-    name: device-collector-kafka-it
-
-  kafka:
-    bootstrap-servers: localhost:9092
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
-    consumer:
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
-      bootstrap-servers: localhost:9092
-      properties:
-        specific.avro.reader: true
-    properties:
-      allow.auto.create.topics: true
-    concurrency: 1
-    poll-timeout: 2000
-    batch-listener-enabled: true
-# отключаем всё лишнее
-  flyway:
-    enabled: false
-management:
-  tracing:
-    enabled: false
-otel:
-  sdk:
-    disabled: true
-spring.autoconfigure.exclude: >
-  org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,
-  org.springframework.boot.autoconfigure.kafka.KafkaStreamsAutoConfiguration
+#spring:
+#  application:
+#    name: device-collector-kafka-it
+#
+#  kafka:
+#    bootstrap-servers: localhost:9092
+#    producer:
+#      key-serializer: org.apache.kafka.common.serialization.StringDeserializer
+#      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+#    consumer:
+#      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+#      value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
+#      bootstrap-servers: localhost:9092
+#      properties:
+#        specific.avro.reader: true
+#    properties:
+#      allow.auto.create.topics: true
+#    concurrency: 1
+#    poll-timeout: 2000
+#    batch-listener-enabled: true
+## отключаем всё лишнее
+#  flyway:
+#    enabled: false
+#management:
+#  tracing:
+#    enabled: false
+#otel:
+#  sdk:
+#    disabled: true

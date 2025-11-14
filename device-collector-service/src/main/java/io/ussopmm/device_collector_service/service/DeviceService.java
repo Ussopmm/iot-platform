@@ -48,6 +48,7 @@ public class DeviceService {
                         var b = tracer.spanBuilder("db.upsert.batch").startSpan();
                         try (var _ = b.makeCurrent()) {
                             return Mono.fromCallable(() -> deviceRepository.upsertBatch(batch, metrics))
+                                    .subscribeOn(Schedulers.boundedElastic())
                                     .doFinally(__ -> b.end());
                         }
                     }), 4)

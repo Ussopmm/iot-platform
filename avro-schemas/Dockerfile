@@ -1,36 +1,17 @@
-# STAGE 1. BUILD
-FROM gradle:8.14.2-jdk24 AS build
-
-ARG NEXUS_URL=http://host.docker.internal:8081/repository/maven-snapshots
-ARG NEXUS_USERNAME=admin
-ARG NEXUS_PASSWORD=admin
-
-ENV NEXUS_URL=${NEXUS_URL}
-ENV NEXUS_USERNAME=${NEXUS_USERNAME}
-ENV NEXUS_PASSWORD=${NEXUS_PASSWORD}
-
-WORKDIR /home/gradle/src
-
-COPY build.gradle.kts .
-COPY settings.gradle.kts .
-COPY src ./src
-RUN gradle build --no-daemon -x test
-RUN gradle publish --info
-
-
-# STAGE 2. RUN
-FROM openjdk:24-jdk-slim
-
-RUN groupadd -r avro_user && useradd -r -g avro_user avro_user
-
-RUN apt-get update && apt-get clean && rm -rf /var/lib/apt/lists/*
+FROM eclipse-temurin:24-jdk
 
 WORKDIR /app
 
-COPY --from=build /home/gradle/src/build/libs/*.jar .
+# Копируем gradle wrapper
+COPY gradlew .
+COPY gradle gradle/
 
-RUN chown -R avro_user /app
+# Копируем файлы проекта
+COPY build.gradle.kts .
+COPY settings.gradle.kts .
+COPY src src/
 
-USER avro_user
+# Делаем gradlew исполняемым
+RUN chmod +x ./gradlew
 
-ENTRYPOINT ["java", "-jar", "avro-schemas-1.0.0-SNAPSHOT.jar"]
+# НЕ публикуем здесь! Публикация произойдёт в runtime через command в docker-compose

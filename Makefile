@@ -1,5 +1,7 @@
 up:
-	docker-compose -f infrastructure/docker-compose.yaml up -d --build
+	cd infrastructure
+	docker compose up --build -d nexus
+	docker-compose up --build -d
 
 down:
 	docker-compose -f infrastructure/docker-compose.yaml down

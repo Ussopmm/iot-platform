@@ -66,7 +66,12 @@ import static org.mockito.Mockito.*;
         "spring.flyway.enabled=false",
         "app.retry.maxAttempts=1",
         "app.retry.minBackoffS=1",
-        "app.retry.maxBackoffS=2"
+        "app.retry.maxBackoffS=2",
+        "spring.kafka.concurrency=1",
+        "spring.kafka.poll-timeout=2000",
+        "spring.kafka.batch-listener-enabled=true",
+        "management.tracing.enabled=false",
+        "otel.sdk.disabled=true",
 })
 public class DeviceListenerDltIT {
 
@@ -96,15 +101,17 @@ public class DeviceListenerDltIT {
 
     @DynamicPropertySource
     static void props(DynamicPropertyRegistry r) {
-        String bootstrap = KAFKA.getBootstrapServers();
-        String registry  = "http://" + SCHEMA_REGISTRY.getHost() + ":" + SCHEMA_REGISTRY.getMappedPort(8081);
-        r.add("spring.kafka.bootstrap-servers", () -> bootstrap);
+        r.add("spring.kafka.bootstrap-servers", KAFKA::getBootstrapServers);
+        r.add("spring.kafka.consumer.bootstrap-servers", KAFKA::getBootstrapServers);
+        r.add("spring.kafka.producer.bootstrap-servers", KAFKA::getBootstrapServers);
+
+        String registry = "http://" + SCHEMA_REGISTRY.getHost() + ":" + SCHEMA_REGISTRY.getMappedPort(8081);
         r.add("spring.kafka.properties.schema.registry.url", () -> registry);
 
-        // если у тебя dltTopic берётся из проперти:
         r.add("app.kafka.dlt-topic", () -> DLT_TOPIC);
         r.add("app.kafka.source-topic", () -> SOURCE_TOPIC);
     }
+
 
     @TestConfiguration
     static class AvroTemplateConfig {
@@ -114,11 +121,13 @@ public class DeviceListenerDltIT {
             Map<String, Object> cfg = new HashMap<>();
             cfg.put("bootstrap.servers", KAFKA.getBootstrapServers());
             cfg.put("key.serializer", org.apache.kafka.common.serialization.StringSerializer.class);
-            cfg.put("value.serializer", io.confluent.kafka.serializers.KafkaAvroSerializer.class);
-            cfg.put("schema.registry.url", "http://" + SCHEMA_REGISTRY.getHost() + ":" + SCHEMA_REGISTRY.getMappedPort(8081));
+            cfg.put("value.serializer", KafkaAvroSerializer.class);
+            String registry = "http://" + SCHEMA_REGISTRY.getHost() + ":" + SCHEMA_REGISTRY.getMappedPort(8081);
+            cfg.put("schema.registry.url", registry);
             return new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(cfg));
         }
     }
+
 
 
     @Autowired
@@ -141,13 +150,6 @@ public class DeviceListenerDltIT {
 
     @BeforeAll
     static void createTopics() throws Exception {
-        // Kafka
-        System.setProperty("spring.kafka.bootstrap-servers", KAFKA.getBootstrapServers());
-        System.setProperty("spring.kafka.consumer.bootstrap-servers", KAFKA.getBootstrapServers());
-        System.setProperty("spring.kafka.producer.bootstrap-servers", KAFKA.getBootstrapServers());
-        System.setProperty("spring.kafka.properties.schema.registry.url",
-                "http://" + SCHEMA_REGISTRY.getHost() + ":" + SCHEMA_REGISTRY.getMappedPort(8081));
-
         try (AdminClient admin = AdminClient.create(Map.of("bootstrap.servers", KAFKA.getBootstrapServers()))) {
             admin.createTopics(List.of(
                     new NewTopic(SOURCE_TOPIC, 1, (short) 1),
@@ -171,7 +173,7 @@ public class DeviceListenerDltIT {
         Device dev = new Device();          // SpecificRecord
         dev.setDeviceId("dlt-it-42");
         dev.setDeviceType("TEST");
-        dev.setCreatedAt(1l);
+        dev.setCreatedAt(1L);
         dev.setMeta("test meta");
 
         var rec = new org.apache.kafka.clients.consumer.ConsumerRecord<String, Device>(
@@ -185,7 +187,7 @@ public class DeviceListenerDltIT {
 
         // Читаем из DLT авро-консюмером
         Properties props = new Properties();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA.getBootstrapServers());
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA.getBootstrapServers()); // используем внешний адрес
         props.put(ConsumerConfig.GROUP_ID_CONFIG, "dlt-it-consumer");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");

@@ -8,7 +8,7 @@ RUN gradle build --no-daemon -x test
 
 
 # STAGE 2. RUN
-FROM openjdk:24-jdk-slim
+FROM eclipse-temurin:24-jdk
 
 RUN groupadd -r iot_user && useradd -r -g iot_user iot_user
 

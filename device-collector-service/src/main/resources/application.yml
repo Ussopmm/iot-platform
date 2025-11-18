@@ -37,7 +37,7 @@ spring:
   kafka:
     consumer:
       group-id: ${DEVICE_COLLECTOR_KAFKA_CONSUMER_GROUP_ID:device-collector-group}
-      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9093}
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
       max-poll-records: 50
@@ -52,7 +52,7 @@ spring:
       name: device-topic
     dlt-topic:
       name: device-topic.DLT
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9093}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 management:
   endpoints:
     web:
@@ -93,13 +93,13 @@ sharding:
     username: ${SHARD_DB_USERNAME:postgres}
     password: ${SHARD_DB_PASSWORD:postgres}
     shard-master-0:
-      jdbc-url: ${SHARD_MASTER_0_JDBC_URL:jdbc:postgresql://localhost:5434/devices?currentSchema=device}
+      jdbc-url: ${SHARD_MASTER_0_JDBC_URL:jdbc:postgresql://device_db_0:5432/devices?currentSchema=device}
     shard-replica-0:
-      jdbc-url: ${SHARD_REPLICA_0_JDBC_URL:jdbc:postgresql://localhost:5435/devices?currentSchema=device}
+      jdbc-url: ${SHARD_REPLICA_0_JDBC_URL:jdbc:postgresql://device_db_1:5432/devices?currentSchema=device}
     shard-master-1:
-      jdbc-url: ${SHARD_MASTER_1_JDBC_URL:jdbc:postgresql://localhost:5436/devices?currentSchema=device}
+      jdbc-url: ${SHARD_MASTER_1_JDBC_URL:jdbc:postgresql://device_db_2:5432/devices?currentSchema=device}
     shard-replica-1:
-      jdbc-url: ${SHARD_REPLICA_1_JDBC_URL:jdbc:postgresql://localhost:5437/devices?currentSchema=device}
+      jdbc-url: ${SHARD_REPLICA_1_JDBC_URL:jdbc:postgresql://device_db_3:5432/devices?currentSchema=device}
 
 app:
   retry:

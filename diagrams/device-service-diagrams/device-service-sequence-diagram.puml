@@ -1,0 +1,29 @@
+@startuml
+actor Client
+participant "DeviceService" as DS
+participant "Kafka Broker" as KB
+participant "DeviceCollectorService" as DCS
+participant "AvroSerializer" as AVRO
+participant "ShardingSphere JDBC" as SSJDBC
+database "PostgreSQL Shard N" as PGN
+participant "KafkaProducer (DLT)" as KP
+
+Client -> DS : HTTP request \n to create Device
+DS -> KB : publish Device \n (in Avro format) to device-topic
+KB -> DCS : получение событий из device-topic
+DCS -> AVRO : десериализация Avro
+alt ошибка десериализации Avro
+    DCS -> AVRO : логирование ошибки
+    DCS -> KP : отправить в Dead Letter Topic
+end
+AVRO --> DCS : Device DTO
+DCS -> SSJDBC : сохранить/обновить устройство (по deviceId)
+SSJDBC -> PGN : insert/update (шард определяется по deviceId)
+alt ошибка сохранения/шардинга
+    DCS -> SSJDBC : retry with backoff 3 times
+    DCS -> KP : отправить в Dead Letter Topic
+end
+DCS -> KB : commiting offset\n(фиксация смещения\nвнутри партиции)
+
+DCS -> DCS : логирование, метрики, определение shard-ключа
+@enduml

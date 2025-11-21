@@ -1,0 +1,190 @@
+openapi: 3.0.3
+info:
+  title: Device Service API
+  description: API для управления устройствами
+  version: 1.0.0
+  contact:
+    name: Ussopmm
+    email: support@ussopmm.io
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+
+tags:
+  - name: devices
+    description: Операции с устройствами
+
+paths:
+  /devices:
+    post:
+      tags:
+        - devices
+      summary: Создание нового устройства
+      operationId: createDevice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDeviceRequest'
+      responses:
+        '201':
+          description: Устройство успешно создано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceResponse'
+        '400':
+          description: Некорректные данные
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /devices/{deviceId}:
+    get:
+      tags:
+        - devices
+      summary: Получение информации по устройству
+      operationId: getDevice
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Информация об устройстве
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceResponse'
+        '404':
+          description: Устройство не найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags:
+        - devices
+      summary: Обновление данных устройства
+      operationId: updateDevice
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDeviceRequest'
+      responses:
+        '200':
+          description: Устройство успешно обновлено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceResponse'
+        '404':
+          description: Устройство не найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - devices
+      summary: Удаление устройства
+      operationId: deleteDevice
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Устройство успешно удалено
+        '404':
+          description: Устройство не найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    CreateDeviceRequest:
+      type: object
+      required:
+        - deviceType
+      properties:
+        deviceType:
+          type: string
+          description: Тип устройства
+          example: smartphone
+        meta:
+          type: string
+          description: JSONB метаданные устройства в виде JSON-строки
+          example: '{"name":"iPhone 15 Pro","manufacturer":"Apple"}'
+
+    UpdateDeviceRequest:
+      type: object
+      properties:
+        deviceType:
+          type: string
+          description: Тип устройства
+          example: smartphone
+        meta:
+          type: string
+          description: JSONB метаданные устройства в виде JSON-строки
+          example: '{"name":"iPhone 15 Pro Max","manufacturer":"Apple"}'
+
+    DeviceResponse:
+      type: object
+      required:
+        - deviceId
+        - deviceType
+        - createdAt
+      properties:
+        deviceId:
+          type: string
+          description: Уникальный идентификатор устройства
+          example: dev_1234567890
+        deviceType:
+          type: string
+          description: Тип устройства
+          example: smartphone
+        createdAt:
+          type: integer
+          format: int64
+          description: Время регистрации в UNIX миллисекундах
+          example: 1704067200000
+        meta:
+          type: object
+          description: JSONB метаданные устройства
+          additionalProperties: true
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Код ошибки
+          example: DEVICE_NOT_FOUND
+        message:
+          type: string
+          description: Описание ошибки
+          example: Устройство с указанным ID не найдено
+

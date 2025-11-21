@@ -1,0 +1,20 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+Container_Boundary(c1, "Device Service") {
+    Component(device_rest_controller, "DeviceRestController.java", "Rest controller", "Обработка входящих HTTP запросов от клиентов")
+    Component(device_service, "DeviceService.java", "Service class", "Класс бизнес логики для манипуляции устройствами")
+    Component(device_producer, "DeviceProducer.java", "Producer class", "Публикация событий по устройства в Kafka топик")
+    Component(web_security_config, "WebSecurityConfig.java", "Config class", "Настройка безопасности веб-приложения")
+    Component(keycloak_jwt_config, "KeycloakJwtAuthenticationConfig.java", "Config class", "Парсинг Jwt токена и получение ролей/scopes")
+    Component(device_service_open_api, "device-service-open-api.yaml", "OpenApi спецификация", "Документация всего API, облегчение интеграции с другими сервисами как Feign client")
+}
+
+Component_Ext(kafka_broker, "Kafka Broker", "Message Broker", "Обрабатывает поступающие Avro события от IoT устройств")
+
+
+Rel(device_rest_controller, device_service, "вызов соответсвующих функций")
+Rel(device_service, device_producer, "публикация событий по устройствам")
+Rel(web_security_config, keycloak_jwt_config, "jwt parsing")
+Rel(device_producer, kafka_broker, "Публикация событий в Kafka топик")
+@enduml

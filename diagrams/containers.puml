@@ -1,5 +1,4 @@
-
-@startuml
+@startuml Container
 !includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
 
 System_Boundary(platform, "IoT Monitoring Platform") {
@@ -26,7 +25,7 @@ System_Boundary(platform, "IoT Monitoring Platform") {
         Container(event_collector_service, "Event Collector Service", "Сервис сбора событий", "Сбор событий от устройств")
         Container(device_collector_service, "Device Collector Service", "Сервис сбора информаций об устройствах", "Сбор событий об устройствах")
         Container_Ext(keycloak, "Keycloak", "OAuth2", "Аутентификация и авторизация")
-
+        Container(device_service, "Device Service", "Сервис управления устройствами", "CRUD операции для устройств")
     }
 }
 Container_Ext(zookeeper, "Zookeeper", "Координация брокеров")
@@ -46,6 +45,7 @@ Rel(prometheus, postgres_exporter, "Scrapes /metrics")
 Rel(prometheus, event_collector_service, "Scrapes /metrics")
 Rel(prometheus, device_collector_service, "Scrapes /metrics")
 Rel(prometheus, keycloak, "Scrapes /metrics")
+Rel(prometheus, device_service, "Scrapes /metrics")
 
 Rel(grafana, prometheus, "Queries metrics")
 Rel(grafana, loki, "Queries logs")
@@ -67,5 +67,8 @@ Rel(event_collector_service, schema_registry, "Retrieve/Register Avro schema")
 Rel(avro_schemas, nexus, "Publish artifact (jar-file) in Nexus")
 Rel(event_collector_service, nexus, "Get Avro schemas artifact (jar-file) from Nexus")
 Rel(device_collector_service, nexus, "Get Avro schemas artifact (jar-file) from Nexus")
+
+Rel(device_service, kafka_cluster, "Публикация устройств в топик device-topic")
+Rel(device_service, redis, "Кэширование hot данных")
 
 @enduml

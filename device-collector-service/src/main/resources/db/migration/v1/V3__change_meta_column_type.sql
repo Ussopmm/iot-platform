@@ -1,0 +1,2 @@
+ALTER TABLE device.devices
+ALTER COLUMN meta TYPE JSONB USING meta::TEXT::JSONB;

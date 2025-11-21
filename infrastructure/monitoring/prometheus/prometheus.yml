@@ -54,3 +54,13 @@ scrape_configs:
     metrics_path: /actuator/prometheus
     static_configs:
       - targets: ['event-collector-service:9099']
+
+  - job_name: 'device-collector-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['device-collector-service:9098']
+
+  - job_name: 'device-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['device-service:9097']

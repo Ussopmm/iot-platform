@@ -1,0 +1,85 @@
+server:
+  port: 9097
+#application:
+#  keycloak:
+#    serverUrl: ${KEYCLOAK_URL:http://localhost:8080}
+#    realmUrl: ${application.keycloak.serverUrl}/realms/${application.keycloak.realm}
+#    tokenUrl: ${application.keycloak.realmUrl}/protocol/openid-connect/token
+#    realm: iot-platform
+#    clientId: device-service
+#    clientSecret: ${KEYCLOAK_CLIENT_SECRET}
+#    adminUsername: ${KEYCLOAK_ADMIN_USERNAME:admin}
+#    adminPassword: ${KEYCLOAK_ADMIN_PASSWORD:admin}
+#    adminClientId: admin-cli
+
+spring:
+  application:
+    name: device-service
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/iot-platform}
+  kafka:
+    producer:
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+      properties:
+        enable.idempotence: true
+    topic:
+      name: device-topic
+#    concurrency: ${KAFKA_CONCURRENCY}
+#    poll-timeout: ${KAFKA_POLL_TIMEOUT}
+#    batch-listener-enabled: ${KAFKA_BATCH_LISTENER_ENABLED}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    prometheus:
+      access: read_only
+    health:
+      show-details: always
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+
+otel:
+  exporter:
+    otlp:
+      endpoint: ${ALLOY_URL}
+      protocol: http/protobuf
+  logs:
+    exporter: none
+  metrics:
+    exporter: none
+
+logging:
+  config: "classpath:logback.xml"
+  level:
+    org.flywaydb: DEBUG
+    org.springframework.jdbc: DEBUG
+
+sharding:
+  datasource:
+    username: ${SHARD_DB_USERNAME:postgres}
+    password: ${SHARD_DB_PASSWORD:postgres}
+    shard-master-0:
+      jdbc-url: ${SHARD_MASTER_0_JDBC_URL:jdbc:postgresql://device_db_0:5432/devices?currentSchema=device}
+    shard-replica-0:
+      jdbc-url: ${SHARD_REPLICA_0_JDBC_URL:jdbc:postgresql://device_db_1:5432/devices?currentSchema=device}
+    shard-master-1:
+      jdbc-url: ${SHARD_MASTER_1_JDBC_URL:jdbc:postgresql://device_db_2:5432/devices?currentSchema=device}
+    shard-replica-1:
+      jdbc-url: ${SHARD_REPLICA_1_JDBC_URL:jdbc:postgresql://device_db_3:5432/devices?currentSchema=device}

@@ -23,8 +23,8 @@ spring:
     consumer:
       group-id: ${CONSUMER_GROUP_ID}
       bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
-      key-deserializer: org.apache.kafka.common.serialization.StringSerializer
-      value-deserializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
       max-poll-records: 50
     properties:
       schema.registry.url:  ${SCHEMA_REGISTRY_URL}

@@ -83,7 +83,7 @@ services:
     ports:
       - "9187:9187"
     environment:
-      DATA_SOURCE_URI: "device_db_0:5432/${POSTGRES_DB}?sslmode=disable"
+      DATA_SOURCE_URI: "device_db_0:5432/${SHARD_DB}?sslmode=disable"
       DATA_SOURCE_USER: ${SHARD_DB_USERNAME}
       DATA_SOURCE_PASS: ${SHARD_DB_PASSWORD}
     depends_on:
@@ -103,7 +103,7 @@ services:
     ports:
       - "9188:9187"
     environment:
-      DATA_SOURCE_URI: "device_db_1:5432/${POSTGRES_DB}?sslmode=disable"
+      DATA_SOURCE_URI: "device_db_1:5432/${SHARD_DB}?sslmode=disable"
       DATA_SOURCE_USER: ${SHARD_DB_USERNAME}
       DATA_SOURCE_PASS: ${SHARD_DB_PASSWORD}
     depends_on:
@@ -123,7 +123,7 @@ services:
     ports:
       - "9189:9187"
     environment:
-      DATA_SOURCE_URI: "device_db_2:5432/${POSTGRES_DB}?sslmode=disable"
+      DATA_SOURCE_URI: "device_db_2:5432/${SHARD_DB}?sslmode=disable"
       DATA_SOURCE_USER: ${SHARD_DB_USERNAME}
       DATA_SOURCE_PASS: ${SHARD_DB_PASSWORD}
     depends_on:
@@ -143,7 +143,7 @@ services:
     ports:
       - "9190:9187"
     environment:
-      DATA_SOURCE_URI: "device_db_3:5432/${POSTGRES_DB}?sslmode=disable"
+      DATA_SOURCE_URI: "device_db_3:5432/${SHARD_DB}?sslmode=disable"
       DATA_SOURCE_USER: ${SHARD_DB_USERNAME}
       DATA_SOURCE_PASS: ${SHARD_DB_PASSWORD}
     depends_on:
@@ -217,7 +217,7 @@ services:
     environment:
       KAFKA_BROKER_ID: ${KAFKA_BROKER_ID}
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     depends_on:
@@ -549,35 +549,56 @@ services:
     networks:
       - iot-platform-net
 
-  #  event-collector-service:
-  #    build:
-  #      context: ../event-collector-service/
-  #      dockerfile: Dockerfile
-  #    container_name: event-collector-service
-  #    ports:
-  #      - "9099:9099"
-  #    environment:
-  #      CASSANDRA_HOST: ${CASSANDRA_HOST}
-  #      CASSANDRA_PORT: ${CASSANDRA_PORT}
-  #      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
-  #      SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL}
-  #      ALLOY_URL: ${ALLOY_URL}
-  #      CASSANDRA_DATABASE_URL: ${CASSANDRA_DATABASE_URL}
-  #    networks:
-  #      - iot-platform-net
-  #    depends_on:
-  #      cassandra:
-  #        condition: service_healthy
-  #      kafka:
-  #        condition: service_healthy
-  #      schema-registry:
-  #        condition: service_healthy
-  #    healthcheck:
-  #      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9099/actuator/health" ]
-  #      interval: 15s
-  #      timeout: 5s
-  #      retries: 5
-  #      start_period: 30s
+  event-collector-service:
+    build:
+      context: ../event-collector-service/
+      dockerfile: Dockerfile
+      args:
+        NEXUS_URL: ${NEXUS_URL}
+        NEXUS_USERNAME: ${NEXUS_USERNAME}
+        NEXUS_PASSWORD: ${NEXUS_PASSWORD}
+    container_name: event-collector-service
+    ports:
+      - "9099:9099"
+    environment:
+      CASSANDRA_HOST: ${CASSANDRA_HOST}
+      CASSANDRA_PORT: ${CASSANDRA_PORT}
+      CASSANDRA_USER: ${CASSANDRA_USER}
+      CASSANDRA_PASSWORD: ${CASSANDRA_PASSWORD}
+      CASSANDRA_DATABASE_URL: ${CASSANDRA_DATABASE_URL}
+      CASSANDRA_KEYSPACE: ${CASSANDRA_KEYSPACE}
+      CASSANDRA_DATACENTER: ${CASSANDRA_DATACENTER}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL}
+      CONSUMER_GROUP_ID: ${CONSUMER_GROUP_ID}
+      KAFKA_CONCURRENCY: ${KAFKA_CONCURRENCY}
+      KAFKA_POLL_TIMEOUT: ${KAFKA_POLL_TIMEOUT}
+      KAFKA_BATCH_LISTENER_ENABLED: ${KAFKA_BATCH_LISTENER_ENABLED}
+      ALLOY_URL: ${ALLOY_URL}
+      FLYWAY_MIGRATION_CLASSPATH: ${FLYWAY_MIGRATION_CLASSPATH}
+      FLYWAY_MIGRATION_SUFFIXES: ${FLYWAY_MIGRATION_SUFFIXES}
+      FLYWAY_MIGRATION_SCHEMA: ${FLYWAY_MIGRATION_SCHEMA}
+#    volumes:
+#      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - iot-platform-net
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+      nexus:
+        condition: service_healthy
+      avro-schemas:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9099/actuator/health" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   nexus:
     image: sonatype/nexus3:3.76.0
@@ -613,18 +634,10 @@ services:
     command: >
       sh -c "
         echo 'Publishing Avro schemas to Nexus...' &&
-        gradle publish --no-daemon &&
+        ./gradlew publish --no-daemon &&
         echo 'Avro schemas published successfully!' &&
         exit 0
       "
-
-  dind:
-    image: docker:25-dind
-    privileged: true
-    environment:
-      - DOCKER_TLS_CERTDIR=
-    networks:
-      - iot-platform-net
 
   device-collector-service:
     build:
@@ -634,7 +647,6 @@ services:
         NEXUS_URL: ${NEXUS_URL}
         NEXUS_USERNAME: ${NEXUS_USERNAME}
         NEXUS_PASSWORD: ${NEXUS_PASSWORD}
-#      network: iot-platform-net
     container_name: device-collector-service
     ports:
       - "9098:9098"
@@ -653,8 +665,12 @@ services:
       HIGHLIGHT_SQL: ${HIGHLIGHT_SQL}
       FORMAT_SQL: ${FORMAT_SQL}
       SHOW_SQL: ${SHOW_SQL}
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      SHARD_MASTER_0_JDBC_URL: ${SHARD_MASTER_0_JDBC_URL}
+      SHARD_MASTER_1_JDBC_URL: ${SHARD_MASTER_0_JDBC_URL}
+      SHARD_REPLICA_0_JDBC_URL: ${SHARD_REPLICA_0_JDBC_URL}
+      SHARD_REPLICA_1_JDBC_URL: ${SHARD_REPLICA_0_JDBC_URL}
+      SHARD_DB_USERNAME: ${SHARD_DB_USERNAME}
+      SHARD_DB_PASSWORD: ${SHARD_DB_PASSWORD}
     networks:
       - iot-platform-net
     depends_on:
@@ -664,8 +680,8 @@ services:
         condition: service_healthy
       nexus:
         condition: service_healthy
-#      avro-schemas:
-#        condition: service_completed_successfully  # ← Важно!
+      avro-schemas:
+        condition: service_completed_successfully  # ← Важно!
       device_db_0:
         condition: service_healthy
       device_db_1:
@@ -674,8 +690,6 @@ services:
         condition: service_healthy
       device_db_3:
         condition: service_healthy
-      dind:
-        condition: service_started
     healthcheck:
       test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9098/actuator/health" ]
       interval: 15s
@@ -702,7 +716,10 @@ volumes:
   loki_rules:
   tempo_data:
   nexus-data:
+  zookeeper_data_test:
+  zookeeper_log_test:
 
 networks:
   iot-platform-net:
-    driver: bridge
+    external: true
+    name: iot-platform-net

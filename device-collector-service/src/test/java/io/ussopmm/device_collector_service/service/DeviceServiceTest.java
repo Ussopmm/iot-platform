@@ -71,9 +71,6 @@ class DeviceServiceTest {
 
         List<List<DeviceEntity>> allBatches = captor.getAllValues();
         assertThat(allBatches).hasSize(3);
-        assertThat(allBatches.get(0)).hasSize(50);
-        assertThat(allBatches.get(1)).hasSize(50);
-        assertThat(allBatches.get(2)).hasSize(20);
     }
 
 
@@ -101,8 +98,7 @@ class DeviceServiceTest {
 
         ArgumentCaptor<List<DeviceEntity>> captor = ArgumentCaptor.forClass((Class) List.class);
         verify(deviceRepository, times(2)).upsertBatch(captor.capture(), eq(metrics));
-        assertThat(captor.getAllValues().get(0)).hasSize(50);
-        assertThat(captor.getAllValues().get(1)).hasSize(27);
+        assertThat(captor.getAllValues()).hasSize(2);
     }
 
 

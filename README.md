@@ -40,8 +40,16 @@
 ```
 cd infrastructure
 ```
-2. Запустите контейнеры:
+2. Последовательно запустите всю цепочку:
+
+
 ```
+docker network create iot-platform-net (если еще не создавали сеть) 
+docker-compose -f docker-compose.yaml up --build -d nexus
+docker-compose -f docker-compose.yaml run --rm avro-schemas
+docker-compose -f docker-compose-it.yaml up --build -d
+docker-compose -f docker-compose-it.yaml up --build device-collector-tests (убедитесь что тест прошел успешно)
+docker-compose -f docker-compose-it.yaml down -v
 docker-compose up -d --build
 ```
 Или через Makefile:
@@ -76,3 +84,4 @@ docker-compose down | make down
 
 ### avro-schemas 
 Данный модуль предназначен для публикации Avro schemas в Nexus репозиторий.
+

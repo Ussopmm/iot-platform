@@ -72,64 +72,58 @@ import static org.mockito.Mockito.*;
                 "spring.kafka.concurrency=1",
                 "spring.kafka.poll-timeout=2000",
                 "spring.kafka.batch-listener-enabled=true",
-                "spring.kafka.dlt-topic.name=device-topic.DLT"
+                "spring.kafka.dlt-topic.name=device-topic.DLT",
+                "spring.kafka.consumer.auto-offset-reset=earliest",
+
         }
 )
 public class DeviceListenerIT {
 
-    static final Network NET = Network.newNetwork();
-
-    @Container
-    static final KafkaContainer KAFKA = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka").withTag("7.5.0"))
-            .withNetwork(NET)
-            .withNetworkAliases("kafka");
-
-    @Container
-    static final GenericContainer<?> SCHEMA_REGISTRY =
-            new GenericContainer<>(DockerImageName.parse("confluentinc/cp-schema-registry:7.5.0"))
-                    .withNetwork(NET)
-                    .withNetworkAliases("schema-registry")
-                    .withExposedPorts(8081)
-                    .withEnv("SCHEMA_REGISTRY_HOST_NAME", "schema-registry")
-                    .withEnv("SCHEMA_REGISTRY_LISTENERS", "http://0.0.0.0:8081")
-                    .withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "PLAINTEXT://kafka:9092")
-                    .waitingFor(org.testcontainers.containers.wait.strategy.Wait.forHttp("/subjects").forStatusCode(200))
-                    .dependsOn(KAFKA);
+    static final String SOURCE_TOPIC = "device-topic";
+    static final String DLT_TOPIC    = "device-topic.DLT";
+    static final String KAFKA_URL = "kafka-test:9092";
+    static final String SCHEMA_REGISTRY_URL = "http://schema-registry-test:8082";
 
     @DynamicPropertySource
     static void kafkaProperties(DynamicPropertyRegistry registry) throws Exception {
-        String bootstrap = KAFKA.getBootstrapServers();
-        String schemaRegistryUrl = "http://" + SCHEMA_REGISTRY.getHost() + ":" + SCHEMA_REGISTRY.getMappedPort(8081);
-
-        registry.add("spring.kafka.bootstrap-servers", () -> bootstrap);
-        registry.add("spring.kafka.consumer.bootstrap-servers", () -> bootstrap);
-        registry.add("spring.kafka.producer.bootstrap-servers", () -> bootstrap);
-        registry.add("spring.kafka.properties.schema.registry.url", () -> schemaRegistryUrl);
+        registry.add("spring.kafka.bootstrap-servers", () -> KAFKA_URL);
+        registry.add("spring.kafka.consumer.bootstrap-servers", () -> KAFKA_URL);
+        registry.add("spring.kafka.producer.bootstrap-servers", () -> KAFKA_URL);
+        registry.add("spring.kafka.properties.schema.registry.url", () -> SCHEMA_REGISTRY_URL);
         registry.add("spring.kafka.consumer.properties.key.deserializer", () -> "org.apache.kafka.common.serialization.StringDeserializer");
         registry.add("spring.kafka.consumer.properties.value.deserializer", () -> "io.confluent.kafka.serializers.KafkaAvroDeserializer");
         registry.add("spring.kafka.producer.properties.key.serializer", () -> "org.apache.kafka.common.serialization.StringSerializer");
         registry.add("spring.kafka.producer.properties.value.serializer", () -> "io.confluent.kafka.serializers.KafkaAvroSerializer");
         registry.add("spring.kafka.topic.name", () -> "device-topic");
-        String BOOTSTRAP = KAFKA.getHost() + ":" + KAFKA.getFirstMappedPort();
 
-        try (AdminClient admin = AdminClient.create(Map.of(
-                AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP))) {
+        try (AdminClient admin = AdminClient.create(Map.of("bootstrap.servers", KAFKA_URL))) {
 
-            String topicName = "device-topic";
-            admin.createTopics(Collections.singleton(new NewTopic(topicName, 1, (short) 1)))
-                    .all().get(30, TimeUnit.SECONDS);
+            // Получаем список существующих топиков
+            Set<String> existingTopics = admin.listTopics().names().get(30, TimeUnit.SECONDS);
 
-            // Wait until a fresh metadata request sees the topic
-            await().atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(250))
-                    .until(() -> {
-                        try {
-                            return admin.describeTopics(Collections.singletonList(topicName))
-                                    .allTopicNames().get(3, TimeUnit.SECONDS)
-                                    .containsKey(topicName);
-                        } catch (Exception e) {
-                            return false;
-                        }
-                    });
+            List<NewTopic> topicsToCreate = new ArrayList<>();
+
+            if (!existingTopics.contains(SOURCE_TOPIC)) {
+                topicsToCreate.add(new NewTopic(SOURCE_TOPIC, 1, (short) 1));
+                System.out.println("Topic " + SOURCE_TOPIC + " will be created");
+            } else {
+                System.out.println("Topic " + SOURCE_TOPIC + " already exists");
+            }
+
+            if (!existingTopics.contains(DLT_TOPIC)) {
+                topicsToCreate.add(new NewTopic(DLT_TOPIC, 1, (short) 1));
+                System.out.println("Topic " + DLT_TOPIC + " will be created");
+            } else {
+                System.out.println("Topic " + DLT_TOPIC + " already exists");
+            }
+
+            // Создаем только отсутствующие топики
+            if (!topicsToCreate.isEmpty()) {
+                admin.createTopics(topicsToCreate).all().get(30, TimeUnit.SECONDS);
+                System.out.println("Created " + topicsToCreate.size() + " topics");
+            } else {
+                System.out.println("All topics already exist, skipping creation");
+            }
         }
     }
 
@@ -137,7 +131,8 @@ public class DeviceListenerIT {
     NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
     @MockitoBean(name = "deviceService")
-    DeviceService deviceService;
+    private DeviceService deviceService;
+
 
     @Autowired
     KafkaTemplate<String, Device> kafkaTemplate;
@@ -152,26 +147,23 @@ public class DeviceListenerIT {
         when(deviceService.save(anyList(), any(ShardMetrics.class)))
                 .thenAnswer(invocation -> {
                     var list = (java.util.List<?>) invocation.getArgument(0);
-                    return Mono.just(list.size());
+                    long count = list.size();
+                    return Mono.just(count);
                 });
     }
 
 
     @Test
     void listenerConsumesMessage_andCallsDeviceService() throws Exception {
-        // 1. Готовим Avro Device (подставь реальные поля/билдер)
         Device device = Device.newBuilder()
                 .setDeviceId("dev-1")
                 .setDeviceType("MOBILE")
                 .setCreatedAt(100L)
                 .setMeta("testMeta")
-                // остальные обязательные поля, если есть
-                .build();
-
-        String topic = "device-topic"; // то же самое, что ты создаёшь в DynamicPropertySource
+                .build();//
 
         // 2. Отправляем сообщение в Kafka
-        kafkaTemplate.send(topic, "key-1", device).get(10, TimeUnit.SECONDS);
+        kafkaTemplate.send(SOURCE_TOPIC, "key-1", device).get(10, TimeUnit.SECONDS);
         kafkaTemplate.flush();
 
         // 3. Ждём, пока listener отработает и дернёт deviceService.save(...)
@@ -193,7 +185,6 @@ public class DeviceListenerIT {
 
     @Test
     void listenerProcessesBatchOfDevices_happyPath() throws Exception {
-        String topic = "device-topic";
         int batchSize = 5;
 
         // ожидаемые ID
@@ -211,7 +202,7 @@ public class DeviceListenerIT {
                     .setMeta("testMeta" + id)
                     .build();
 
-            kafkaTemplate.send(topic, id, device).get(10, TimeUnit.SECONDS);
+            kafkaTemplate.send(SOURCE_TOPIC, id, device).get(10, TimeUnit.SECONDS);
         }
         kafkaTemplate.flush();
 

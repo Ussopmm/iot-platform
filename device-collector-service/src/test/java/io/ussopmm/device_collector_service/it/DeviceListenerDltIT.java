@@ -43,10 +43,7 @@ import org.testcontainers.utility.DockerImageName;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -72,46 +69,30 @@ import static org.mockito.Mockito.*;
         "spring.kafka.batch-listener-enabled=true",
         "management.tracing.enabled=false",
         "otel.sdk.disabled=true",
+        "spring.kafka.listener.auto-startup=false",
+        "spring.kafka.admin.auto-create=false"
 })
 public class DeviceListenerDltIT {
-
-    static final Network NET = Network.newNetwork();
-
-    @Container
-    static final KafkaContainer KAFKA = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka").withTag("7.5.0"))
-            .withNetwork(NET)
-            .withNetworkAliases("kafka");
-
-    @Container
-    static final GenericContainer<?> SCHEMA_REGISTRY =
-            new GenericContainer<>(DockerImageName.parse("confluentinc/cp-schema-registry:7.5.0"))
-                    .withNetwork(NET)
-                    .withNetworkAliases("schema-registry")
-                    .withExposedPorts(8081)
-                    .withEnv("SCHEMA_REGISTRY_HOST_NAME", "schema-registry")
-                    .withEnv("SCHEMA_REGISTRY_LISTENERS", "http://0.0.0.0:8081")
-                    .withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "PLAINTEXT://kafka:9092")
-                    .waitingFor(org.testcontainers.containers.wait.strategy.Wait.forHttp("/subjects").forStatusCode(200))
-                    .dependsOn(KAFKA);
-
-
-
     static final String SOURCE_TOPIC = "device-topic-it";
     static final String DLT_TOPIC    = "device-topic-it.DLT";
+    static final String KAFKA_URL = "kafka-test:9092";
+    static final String SCHEMA_REGISTRY_URL = "http://schema-registry-test:8082";
+
 
     @DynamicPropertySource
     static void props(DynamicPropertyRegistry r) {
-        r.add("spring.kafka.bootstrap-servers", KAFKA::getBootstrapServers);
-        r.add("spring.kafka.consumer.bootstrap-servers", KAFKA::getBootstrapServers);
-        r.add("spring.kafka.producer.bootstrap-servers", KAFKA::getBootstrapServers);
-
-        String registry = "http://" + SCHEMA_REGISTRY.getHost() + ":" + SCHEMA_REGISTRY.getMappedPort(8081);
+        r.add("spring.kafka.bootstrap-servers", () -> KAFKA_URL);
+        r.add("spring.kafka.consumer.bootstrap-servers", () -> KAFKA_URL);
+        r.add("spring.kafka.producer.bootstrap-servers", () -> KAFKA_URL);
+        String registry = SCHEMA_REGISTRY_URL;
         r.add("spring.kafka.properties.schema.registry.url", () -> registry);
-
+        r.add("spring.kafka.consumer.properties.key.deserializer", () -> "org.apache.kafka.common.serialization.StringDeserializer");
+        r.add("spring.kafka.consumer.properties.value.deserializer", () -> "io.confluent.kafka.serializers.KafkaAvroDeserializer");
+        r.add("spring.kafka.producer.properties.key.serializer", () -> "org.apache.kafka.common.serialization.StringSerializer");
+        r.add("spring.kafka.producer.properties.value.serializer", () -> "io.confluent.kafka.serializers.KafkaAvroSerializer");
         r.add("app.kafka.dlt-topic", () -> DLT_TOPIC);
         r.add("app.kafka.source-topic", () -> SOURCE_TOPIC);
     }
-
 
     @TestConfiguration
     static class AvroTemplateConfig {
@@ -119,16 +100,14 @@ public class DeviceListenerDltIT {
         @Primary
         KafkaTemplate<String, Device> kafkaTemplate() {
             Map<String, Object> cfg = new HashMap<>();
-            cfg.put("bootstrap.servers", KAFKA.getBootstrapServers());
+            cfg.put("bootstrap.servers", KAFKA_URL);
             cfg.put("key.serializer", org.apache.kafka.common.serialization.StringSerializer.class);
             cfg.put("value.serializer", KafkaAvroSerializer.class);
-            String registry = "http://" + SCHEMA_REGISTRY.getHost() + ":" + SCHEMA_REGISTRY.getMappedPort(8081);
+            String registry = SCHEMA_REGISTRY_URL;
             cfg.put("schema.registry.url", registry);
             return new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(cfg));
         }
     }
-
-
 
     @Autowired
     DeviceListener listener;
@@ -143,18 +122,48 @@ public class DeviceListenerDltIT {
     Acknowledgment ack;
 
     @MockitoSpyBean(name = "kafkaTemplate")
-    KafkaTemplate<String, Device> kafkaTemplate; // из тест-конфига
+    KafkaTemplate<String, Device> kafkaTemplate;
 
     @Autowired
     ShardMetrics metrics; // не обязателен, но пусть инициализируется
 
     @BeforeAll
+    static void logBootstrap() throws Exception {
+//        try (AdminClient admin = AdminClient.create(Map.of("bootstrap.servers", "kafka-test:9092"))) {
+//            admin.deleteTopics(List.of(SOURCE_TOPIC, DLT_TOPIC)).all().get(10, TimeUnit.SECONDS);
+//        }
+    }
+
+    @BeforeAll
     static void createTopics() throws Exception {
-        try (AdminClient admin = AdminClient.create(Map.of("bootstrap.servers", KAFKA.getBootstrapServers()))) {
-            admin.createTopics(List.of(
-                    new NewTopic(SOURCE_TOPIC, 1, (short) 1),
-                    new NewTopic(DLT_TOPIC, 1, (short) 1)
-            )).all().get(30, TimeUnit.SECONDS);
+        try (AdminClient admin = AdminClient.create(Map.of("bootstrap.servers", KAFKA_URL))) {
+
+            // Получаем список существующих топиков
+            Set<String> existingTopics = admin.listTopics().names().get(30, TimeUnit.SECONDS);
+
+            List<NewTopic> topicsToCreate = new ArrayList<>();
+
+            if (!existingTopics.contains(SOURCE_TOPIC)) {
+                topicsToCreate.add(new NewTopic(SOURCE_TOPIC, 1, (short) 1));
+                System.out.println("Topic " + SOURCE_TOPIC + " will be created");
+            } else {
+                System.out.println("Topic " + SOURCE_TOPIC + " already exists");
+            }
+
+            if (!existingTopics.contains(DLT_TOPIC)) {
+                topicsToCreate.add(new NewTopic(DLT_TOPIC, 1, (short) 1));
+                System.out.println("Topic " + DLT_TOPIC + " will be created");
+            } else {
+                System.out.println("Topic " + DLT_TOPIC + " already exists");
+            }
+
+            // Создаем только отсутствующие топики
+            if (!topicsToCreate.isEmpty()) {
+                admin.createTopics(topicsToCreate).all().get(30, TimeUnit.SECONDS);
+                System.out.println("Created " + topicsToCreate.size() + " topics");
+            } else {
+                System.out.println("All topics already exist, skipping creation");
+            }
         }
     }
 
@@ -187,11 +196,11 @@ public class DeviceListenerDltIT {
 
         // Читаем из DLT авро-консюмером
         Properties props = new Properties();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA.getBootstrapServers()); // используем внешний адрес
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA_URL); // используем внешний адрес
         props.put(ConsumerConfig.GROUP_ID_CONFIG, "dlt-it-consumer");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        props.put("schema.registry.url", "http://" + SCHEMA_REGISTRY.getHost() + ":" + SCHEMA_REGISTRY.getMappedPort(8081));
+        props.put("schema.registry.url", SCHEMA_REGISTRY_URL);
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, io.confluent.kafka.serializers.KafkaAvroDeserializer.class);
         props.put("specific.avro.reader", true);

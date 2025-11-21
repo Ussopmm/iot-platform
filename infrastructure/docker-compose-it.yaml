@@ -1,0 +1,119 @@
+version: '3.9'
+
+services:
+#  kafka-test:
+#    image: confluentinc/cp-kafka:7.5.0
+#    container_name: kafka-test
+#    hostname: kafka-test
+#    ports:
+#      - "9093:9093"
+#    environment:
+#      KAFKA_BROKER_ID: ${KAFKA_BROKER_ID}
+#      KAFKA_ZOOKEEPER_CONNECT: zookeeper-test:2182
+#      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9093
+#      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-test:9093
+#      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+#      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+#    depends_on:
+#      zookeeper-test:
+#        condition: service_healthy
+#    healthcheck:
+#      interval: 10s
+#      timeout: 5s
+#      retries: 5
+#      test: [ "CMD", "kafka-topics", "--bootstrap-server", "localhost:9093", "--list" ]
+#    volumes:
+#      - /var/lib/kafka/data
+#    networks:
+#      - iot-platform-net
+
+
+  kafka-test:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka-test
+    #    hostname: kafka
+    ports:
+      - "9093:9093"   # external listener for host apps
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper-test:2182
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-test:9092,EXTERNAL://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    depends_on:
+      zookeeper-test:
+        condition: service_healthy
+    volumes:
+      - /var/lib/kafka/data
+    healthcheck:
+      test: [ "CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - iot-platform-net
+
+  zookeeper-test:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper-test
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2182
+    networks:
+      - iot-platform-net
+    healthcheck:
+      test: [ "CMD", "echo", "ruok", "|", "nc", "localhost", "2182", "|", "grep", "imok" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - zookeeper_data_test:/var/lib/zookeeper/data
+      - zookeeper_log_test:/var/lib/zookeeper/log
+
+  schema-registry-test:
+    image: confluentinc/cp-schema-registry:7.5.0
+    container_name: schema-registry-test
+    ports:
+      - "8082:8082"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry-test
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8082
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka-test:9092
+    depends_on:
+      kafka-test:
+        condition: service_healthy
+    networks:
+      - iot-platform-net
+
+  device-collector-tests:
+    image: gradle:8.14.3-jdk-21-and-24
+    container_name: device-collector-tests
+    working_dir: /home/gradle/src
+    volumes:
+      - ../device-collector-service/:/home/gradle/src
+      - /var/run/docker.sock:/var/run/docker.sock   # ← обратно монтируем
+    depends_on:
+      kafka-test:
+        condition: service_healthy
+      schema-registry-test:
+        condition: service_started
+    networks:
+      - iot-platform-net
+    environment:
+      DOCKER_HOST: unix:///var/run/docker.sock
+      TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: /var/run/docker.sock
+      TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
+      NEXUS_URL: http://nexus:8081/repository/maven-snapshots/
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: [ "gradle", "clean", "test", "--info", "--stacktrace" ]
+
+volumes:
+  zookeeper_data_test:
+  zookeeper_log_test:
+
+networks:
+  iot-platform-net:
+    external: true
+    name: iot-platform-net
